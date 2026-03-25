@@ -32,7 +32,7 @@ jobs:
           pip install pytest pytest-asyncio httpx ruff
 
       - name: Run tests
-        run: python -m pytest tests/ -v
+        run: PYTHONPATH="$PWD/src:$PYTHONPATH" python -m pytest tests/ -v
 
   lint:
     name: ruff lint
