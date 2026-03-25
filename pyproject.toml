@@ -1,0 +1,18 @@
+[project]
+name = "stock-analysis-agent"
+version = "0.1.0"
+description = "ReAct-based AI agent for stock market analysis"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.0.0",
+    "requests>=2.31.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[project.scripts]
+stock-agent = "src.cli:main"
