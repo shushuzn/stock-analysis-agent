@@ -14,8 +14,8 @@ _mcp_path = Path(__file__).parent.parent.parent / "stock-analysis-mcp" / "src"
 if str(_mcp_path) not in sys.path:
     sys.path.insert(0, str(_mcp_path))
 
-from .agent import ReActAgent, extract_symbol
-from .report import format_report
+from .agent import ReActAgent, extract_symbol  # noqa: E402
+from .report import format_report  # noqa: E402
 
 
 # ── MCP Protocol Handlers ─────────────────────────────────────────────────────
@@ -74,7 +74,6 @@ def handle_tools_call(name: str, arguments: dict) -> dict:
     if name == "stock_analysis":
         query = arguments.get("query", "")
         symbol = arguments.get("symbol", "") or extract_symbol(query)
-        period = arguments.get("period", "6mo")
 
         if not symbol:
             return {

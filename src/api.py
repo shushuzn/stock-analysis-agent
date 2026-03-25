@@ -13,10 +13,9 @@ Endpoints:
 from __future__ import annotations
 
 import asyncio
-import json
 from typing import Any, AsyncGenerator
 
-from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -126,8 +125,6 @@ async def analyze_get(
 
 async def _stream_analysis(query: str, symbol: str, period: str, use_llm: bool = False) -> AsyncGenerator[str, None]:
     """Stream analysis results as they are computed."""
-    agent = ReActAgent(max_steps=10, verbose=False)
-
     selected = __import__("src.tools", fromlist=[""]).select_tools_for_task(query, symbol)
     tools_chosen = [t[0] for t in selected]
 

@@ -6,10 +6,8 @@ investment analysis with reasoning from technical indicators.
 
 from __future__ import annotations
 
-import json
 import os
 import textwrap
-from typing import Any
 
 import anthropic
 

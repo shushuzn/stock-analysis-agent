@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import sys
 
 from .agent import ReActAgent, extract_symbol
 from .report import format_report

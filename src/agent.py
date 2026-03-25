@@ -11,12 +11,11 @@ Inspired by Dify's Agent inference engine but simplified.
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from .tools import execute_tool, list_tools, select_tools_for_task
+from .tools import execute_tool, select_tools_for_task
 
 
 @dataclass
@@ -201,9 +200,7 @@ def extract_symbol(text: str) -> str:
         "苹果公司": "AAPL",
         "微软": "MSFT",
         "谷歌": "GOOGL",
-        "谷歌": "GOOGL",
         "亚马逊": "AMZN",
-        "英伟达": "NVDA",
         "英伟达": "NVDA",
         "特斯拉": "TSLA",
         "Meta": "META",

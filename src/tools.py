@@ -7,7 +7,7 @@ wrapping the stock-analysis-mcp tool functions directly.
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Literal
+from typing import Any, Callable
 
 # Import from stock-analysis-mcp (sibling project)
 import sys
@@ -17,7 +17,7 @@ from pathlib import Path
 _mcp_path = Path(__file__).parent.parent.parent / "stock-analysis-mcp" / "src"
 sys.path.insert(0, str(_mcp_path))
 
-from tools import market, technical, screener, analyzer  # noqa: E402
+from tools import market, technical, analyzer  # noqa: E402
 from tools.china import get_a_share_quote  # noqa: E402
 
 
