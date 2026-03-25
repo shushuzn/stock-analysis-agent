@@ -1,7 +1,7 @@
 """Tests for the tools module."""
 
 import pytest
-from src.tools import list_tools, execute_tool, select_tools_for_task
+from src.agent_tools import list_tools, execute_tool, select_tools_for_task
 
 
 class TestListTools:

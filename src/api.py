@@ -21,7 +21,7 @@ from pydantic import BaseModel
 
 from .agent import ReActAgent, extract_symbol
 from .report import format_report
-from .tools import list_tools
+from .agent_tools import list_tools
 
 
 # ── Request/Response Models ───────────────────────────────────────────────────
