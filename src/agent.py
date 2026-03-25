@@ -15,7 +15,11 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from .tools import execute_tool, select_tools_for_task
+# Use relative import when run as package (python -m), absolute when run as script
+if __spec__ is not None and __spec__.parent:
+    from .agent_tools import execute_tool, select_tools_for_task
+else:
+    from agent_tools import execute_tool, select_tools_for_task
 
 
 @dataclass

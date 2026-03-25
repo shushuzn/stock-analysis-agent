@@ -6,7 +6,7 @@ import argparse
 
 from .agent import ReActAgent, extract_symbol
 from .report import format_report
-from .tools import list_tools
+from .agent_tools import list_tools
 
 
 def main():

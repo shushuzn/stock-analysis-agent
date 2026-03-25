@@ -9,13 +9,16 @@ import json
 import sys
 from pathlib import Path
 
-# Ensure sibling stock-analysis-mcp is importable
-_mcp_path = Path(__file__).parent.parent.parent / "stock-analysis-mcp" / "src"
-if str(_mcp_path) not in sys.path:
-    sys.path.insert(0, str(_mcp_path))
+# Ensure sibling stock-analysis-mcp is importable, and src/ is on path for relative imports
+_root = Path(__file__).parent.parent
+_agent_src = str(_root / "src")
+_mcp_path = str(_root.parent / "stock-analysis-mcp" / "src")
+for p in reversed((_agent_src, _mcp_path)):
+    if p not in sys.path:
+        sys.path.insert(0, p)  # agent src first so its tools.py takes precedence over stock-analysis-mcp
 
-from .agent import ReActAgent, extract_symbol  # noqa: E402
-from .report import format_report  # noqa: E402
+from agent import ReActAgent, extract_symbol  # noqa: E402
+from report import format_report  # noqa: E402
 
 
 # ── MCP Protocol Handlers ─────────────────────────────────────────────────────
@@ -65,7 +68,7 @@ def handle_tools_list() -> dict:
 
 def handle_tools_call(name: str, arguments: dict) -> dict:
     if name == "list_stock_tools":
-        from tools import list_tools
+        from agent_tools import list_tools
         tools = list_tools()
         return {
             "content": [{"type": "text", "text": json.dumps({"tools": tools}, ensure_ascii=False)}]
