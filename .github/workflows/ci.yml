@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    name: pytest
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone stock-analysis-mcp (required dependency)
+        run: git clone https://github.com/shushuzn/stock-analysis-mcp.git ../stock-analysis-mcp || true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          # Install stock-analysis-mcp first (sibling, required by tools.py)
+          pip install ../stock-analysis-mcp
+          # Install stock-analysis-agent as editable package
+          pip install -e .
+          # Test dependencies
+          pip install pytest pytest-asyncio httpx ruff
+
+      - name: Run tests
+        run: pytest tests/ -v
+
+  lint:
+    name: ruff lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Lint
+        run: ruff check src/
