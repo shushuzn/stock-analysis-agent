@@ -42,7 +42,7 @@ class ReActAgent:
     _history: list[dict] = field(default_factory=list)
     _steps: int = 0
 
-    def analyze(self, query: str, symbol: str) -> list[dict]:
+    def analyze(self, query: str, symbol: str, use_llm: bool = False) -> list[dict] | str:
         """Main entry point: analyze a stock based on natural language query.
 
         Args:
@@ -88,6 +88,12 @@ class ReActAgent:
 
             if self.verbose:
                 print(f"  → observation: {result.observation[:80]}")
+
+        # LLM-powered analysis
+        if use_llm:
+            from .llm import analyze_with_llm
+            llm_result = analyze_with_llm(symbol, query, results)
+            return llm_result
 
         return results
 

@@ -32,6 +32,7 @@ class AnalyzeRequest(BaseModel):
     symbol: str | None = None
     period: str = "6mo"
     stream: bool = False
+    llm: bool = False  # Enable LLM-powered analysis
 
 
 class ToolInfo(BaseModel):
@@ -75,7 +76,7 @@ async def analyze(req: AnalyzeRequest):
 
     if req.stream:
         return StreamingResponse(
-            _stream_analysis(req.query, symbol, req.period),
+            _stream_analysis(req.query, symbol, req.period, req.llm),
             media_type="text/plain",
             headers={"X-Symbol": symbol},
         )
@@ -83,18 +84,29 @@ async def analyze(req: AnalyzeRequest):
     # Blocking analysis
     agent = ReActAgent(max_steps=10, verbose=False)
     try:
-        results = agent.analyze(req.query, symbol)
+        if req.llm:
+            # LLM-powered: returns analysis text directly
+            result = agent.analyze(req.query, symbol, use_llm=True)
+            return {
+                "symbol": symbol,
+                "query": req.query,
+                "period": req.period,
+                "analysis": result,
+                "mode": "llm",
+            }
+        else:
+            results = agent.analyze(req.query, symbol)
+            report = format_report(symbol, req.query, results)
+            return {
+                "symbol": symbol,
+                "query": req.query,
+                "period": req.period,
+                "report": report,
+                "tool_results": results,
+                "mode": "data",
+            }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-    report = format_report(symbol, req.query, results)
-    return {
-        "symbol": symbol,
-        "query": req.query,
-        "period": req.period,
-        "report": report,
-        "tool_results": results,
-    }
 
 
 @app.get("/analyze")
@@ -103,15 +115,16 @@ async def analyze_get(
     symbol: str | None = Query(None, description="Stock ticker or A-share code"),
     period: str = Query("6mo", description="Historical period: 1mo, 3mo, 6mo, 1y, 2y"),
     stream: bool = Query(False, description="Enable streaming output"),
+    llm: bool = Query(False, description="Enable LLM-powered analysis"),
 ):
     """GET version of /analyze."""
-    req = AnalyzeRequest(query=query, symbol=symbol, period=period, stream=stream)
+    req = AnalyzeRequest(query=query, symbol=symbol, period=period, stream=stream, llm=llm)
     return await analyze(req)
 
 
 # ── Streaming ─────────────────────────────────────────────────────────────────
 
-async def _stream_analysis(query: str, symbol: str, period: str) -> AsyncGenerator[str, None]:
+async def _stream_analysis(query: str, symbol: str, period: str, use_llm: bool = False) -> AsyncGenerator[str, None]:
     """Stream analysis results as they are computed."""
     agent = ReActAgent(max_steps=10, verbose=False)
 
@@ -119,13 +132,14 @@ async def _stream_analysis(query: str, symbol: str, period: str) -> AsyncGenerat
     tools_chosen = [t[0] for t in selected]
 
     yield f"🎯 Analyzing {symbol} with tools: {', '.join(tools_chosen)}\n\n"
-    yield f"📡 Using data period: {period}\n\n"
+    yield f"📡 Data period: {period} | Mode: {'🤖 LLM分析' if use_llm else '📊 数据报告'}\n\n"
 
+    # Collect results
+    results = []
     for i, (tool_name, kwargs) in enumerate(selected):
         step_num = i + 1
         yield f"▶ Step {step_num}/{len(selected)}: Calling {tool_name}({kwargs})\n"
 
-        # Run in executor to not block
         loop = asyncio.get_event_loop()
         try:
             data = await loop.run_in_executor(
@@ -135,22 +149,27 @@ async def _stream_analysis(query: str, symbol: str, period: str) -> AsyncGenerat
             yield f"   ❌ Error: {e}\n"
             continue
 
-        # Observe
         observation = _make_observation(tool_name, data)
         yield f"   ✅ {observation}\n\n"
-        await asyncio.sleep(0.05)  # Small delay for streaming feel
+        await asyncio.sleep(0.05)
 
-    # Final report
+    # Final output
     yield "─" * 50 + "\n"
-    yield "📊 Final Report:\n\n"
 
     try:
-        results = agent.history
-        if not results:
-            results = agent.analyze(query, symbol)
-        report = format_report(symbol, query, results)
+        if use_llm:
+            from .llm import analyze_with_llm_streaming
+            yield "🤖 LLM分析中...\n\n"
+            async for chunk in analyze_with_llm_streaming(symbol, query, results):
+                yield chunk + "\n"
+        else:
+            yield "📊 Final Report:\n\n"
+            report = format_report(symbol, query, results)
+            for line in report.split("\n"):
+                yield line + "\n"
+                await asyncio.sleep(0.02)
     except Exception as e:
-        report = f"Error generating report: {e}"
+        yield f"Error generating report: {e}"
 
     for line in report.split("\n"):
         yield line + "\n"

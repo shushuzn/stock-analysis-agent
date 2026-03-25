@@ -98,6 +98,25 @@
     outline: none;
   }
 
+  .llm-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+    padding: 0.5rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    transition: border-color 0.2s, color 0.2s;
+  }
+
+  .llm-toggle:hover { border-color: var(--purple); color: var(--purple); }
+  .llm-toggle input { accent-color: var(--purple); cursor: pointer; }
+  .llm-toggle.active { border-color: var(--purple); color: var(--purple); background: rgba(188,140,255,0.1); }
+
   button {
     background: linear-gradient(135deg, var(--blue), #1f6feb);
     border: none;
@@ -257,6 +276,10 @@
         <option value="1y">1年</option>
         <option value="2y">2年</option>
       </select>
+      <label class="llm-toggle" id="llmToggle" onclick="toggleLlm()">
+        <input type="checkbox" id="llmCheck">
+        🤖 LLM
+      </label>
       <button id="analyzeBtn" onclick="analyze()">
         <span>🔍</span> 分析
       </button>
@@ -289,9 +312,17 @@
 <script>
   const API = 'http://localhost:8001';
 
+  function toggleLlm() {
+    const check = document.getElementById('llmCheck');
+    const toggle = document.getElementById('llmToggle');
+    check.checked = !check.checked;
+    toggle.classList.toggle('active', check.checked);
+  }
+
   async function analyze() {
     const query = document.getElementById('queryInput').value.trim();
     const period = document.getElementById('periodSelect').value;
+    const llm = document.getElementById('llmCheck').checked;
 
     if (!query) {
       showError('请输入分析指令');
@@ -308,7 +339,7 @@
       const res = await fetch(`${API}/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, period })
+        body: JSON.stringify({ query, period, llm })
       });
 
       if (!res.ok) {
@@ -341,12 +372,20 @@
     document.getElementById('reportSymbol').textContent = data.symbol;
     document.getElementById('reportSource').textContent = data.report.match(/数据来源: ([^\\n]+)/)?.[1] || '';
 
-    let text = data.report;
+    // LLM mode returns analysis text, data mode returns report
+    let text = data.mode === 'llm' ? data.analysis : data.report;
 
     // Colorize signals
     text = text.replace(/🟢/g, '<span class="signal-bull">🟢</span>');
     text = text.replace(/🔴/g, '<span class="signal-bear">🔴</span>');
     text = text.replace(/⚪/g, '<span class="signal-neutral">⚪</span>');
+
+    // Format markdown-ish headers in LLM output
+    if (data.mode === 'llm') {
+      text = text.replace(/^## (.+)$/gm, '<strong style="color:var(--blue)">$1</strong>');
+      text = text.replace(/^# (.+)$/gm, '<strong style="color:var(--purple);font-size:1.1em">$1</strong>');
+      text = text.replace(/\n/g, '<br>');
+    }
 
     document.getElementById('reportBody').innerHTML = text;
   }
