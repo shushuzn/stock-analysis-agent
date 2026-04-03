@@ -7,10 +7,13 @@ Implements a Reasoning + Action loop:
   4. Repeat until done
 
 Inspired by Dify's Agent inference engine but simplified.
+
+Phase 1 enhancement: Multi-agent debate via parallel execution + LLM synthesis.
 """
 
 from __future__ import annotations
 
+import asyncio
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -99,6 +102,125 @@ class ReActAgent:
             return llm_result
 
         return results
+
+    def analyze_parallel(
+        self,
+        query: str,
+        symbol: str,
+        use_debate: bool = False,
+    ) -> list[dict] | dict:
+        """Analyze with parallel tool execution (faster than sequential).
+
+        Args:
+            query: Natural language task
+            symbol: Stock ticker or A-share code
+            use_debate: If True, run full bull/bear debate + synthesis
+
+        Returns:
+            List of tool results, or dict with debate results if use_debate=True
+        """
+        self._history = []
+        self._steps = 0
+
+        selected = select_tools_for_task(query, symbol)
+        if self.verbose:
+            print(f"[Agent] Selected tools: {[t[0] for t in selected]}")
+
+        # Quote tool runs first (always needed)
+        quote_tool = selected[0]
+        quote_result = self._execute_single(quote_tool)
+
+        # Remaining tools run in parallel
+        remaining = selected[1:]
+        if remaining:
+            parallel_results = self._execute_parallel(remaining)
+        else:
+            parallel_results = []
+
+        results = [quote_result] + parallel_results
+        self._history = results
+
+        if not use_debate:
+            return results
+
+        # ── Multi-Agent Debate ──────────────────────────────────────────────
+        from .debate import run_debate
+        from .llm import bull_bear_synthesis
+
+        if self.verbose:
+            print(f"[Agent] Running multi-round bull/bear debate...")
+
+        debate_result = run_debate(symbol, query, results, max_rounds=2)
+        debate_history = debate_result["debate_history"]
+
+        # Use final closing statements for synthesis
+        synthesis = bull_bear_synthesis(
+            symbol, query, results,
+            debate_result["final_bull"],
+            debate_result["final_bear"],
+            debate_history,
+        )
+
+        return {
+            "tool_results": results,
+            "bull_case": debate_result["final_bull"],
+            "bear_case": debate_result["final_bear"],
+            "debate_history": debate_history,
+            "synthesis": synthesis,
+        }
+
+    def _execute_single(self, tool_spec: tuple[str, dict]) -> dict:
+        """Execute a single tool synchronously."""
+        tool_name, kwargs = tool_spec
+        self._steps += 1
+        try:
+            data = execute_tool(tool_name, **kwargs)
+            error = data.pop("error", "") if isinstance(data, dict) else ""
+            if error and "No data" in error:
+                error = ""
+            result = ToolResult(tool=tool_name, args=kwargs, data=data, error=error)
+        except Exception as e:
+            result = ToolResult(tool=tool_name, args=kwargs, error=str(e))
+
+        result.observation = self._observe(result)
+        return self._to_dict(result)
+
+    async def _execute_single_async(self, tool_spec: tuple[str, dict]) -> dict:
+        """Execute a single tool asynchronously."""
+        tool_name, kwargs = tool_spec
+        self._steps += 1
+        try:
+            # Tools are sync functions — run in thread pool
+            loop = asyncio.get_event_loop()
+            data = await loop.run_in_executor(None, lambda: execute_tool(tool_name, **kwargs))
+            error = data.pop("error", "") if isinstance(data, dict) else ""
+            if error and "No data" in error:
+                error = ""
+            result = ToolResult(tool=tool_name, args=kwargs, data=data, error=error)
+        except Exception as e:
+            result = ToolResult(tool=tool_name, args=kwargs, error=str(e))
+
+        result.observation = self._observe(result)
+        return self._to_dict(result)
+
+    def _execute_parallel(self, tool_specs: list[tuple[str, dict]]) -> list[dict]:
+        """Execute multiple tools in parallel using asyncio."""
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            tasks = [self._execute_single_async(spec) for spec in tool_specs]
+            results = loop.run_until_complete(asyncio.gather(*tasks))
+            return list(results)
+        finally:
+            loop.close()
+
+    def analyze_with_debate(self, query: str, symbol: str) -> dict:
+        """Full multi-agent debate analysis (entry point for debate mode).
+
+        Orchestrates: parallel tool execution → bull researcher →
+                      bear researcher → trader synthesis → risk verdict.
+        """
+        return self.analyze_parallel(query, symbol, use_debate=True)
 
     def _observe(self, result: ToolResult) -> str:
         """Generate a natural language observation from tool result."""

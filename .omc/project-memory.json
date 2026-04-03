@@ -1,0 +1,127 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1774944997466,
+  "projectRoot": "D:\\OpenClaw\\workspace\\80-PROJECTS\\stock-analysis-agent",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Python",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "pyproject.toml"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "fastapi",
+        "version": null,
+        "category": "backend"
+      },
+      {
+        "name": "pytest",
+        "version": null,
+        "category": "testing"
+      }
+    ],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": "pytest",
+    "lintCommand": "ruff check",
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": "snake_case",
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "src",
+      "tests"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 10,
+      "lastAccessed": 1774944997436,
+      "keyFiles": [
+        "agent.py",
+        "agent_tools.py",
+        "api.py",
+        "cli.py",
+        "debate.py"
+      ]
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 6,
+      "lastAccessed": 1774944997437,
+      "keyFiles": [
+        "conftest.py",
+        "test_agent.py",
+        "test_api.py",
+        "test_llm.py",
+        "test_report.py"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src\\agent_tools.py",
+      "accessCount": 71,
+      "lastAccessed": 1774947676137,
+      "type": "file"
+    },
+    {
+      "path": "src\\report.py",
+      "accessCount": 8,
+      "lastAccessed": 1774947234468,
+      "type": "directory"
+    },
+    {
+      "path": "src\\cli.py",
+      "accessCount": 3,
+      "lastAccessed": 1774945877371,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 2,
+      "lastAccessed": 1774945815065,
+      "type": "directory"
+    },
+    {
+      "path": "pyproject.toml",
+      "accessCount": 2,
+      "lastAccessed": 1774945887929,
+      "type": "file"
+    },
+    {
+      "path": "__main__.py",
+      "accessCount": 1,
+      "lastAccessed": 1774945795418,
+      "type": "file"
+    },
+    {
+      "path": "C:\\Users\\adm\\.claude\\projects\\D--OpenClaw-workspace\\memory\\MEMORY.md",
+      "accessCount": 1,
+      "lastAccessed": 1775218350361,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

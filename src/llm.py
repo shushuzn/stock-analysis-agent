@@ -156,6 +156,129 @@ def analyze_with_llm(symbol: str, query: str, results: list[dict]) -> str:
         return f"[LLM分析失败: {e}]"
 
 
+def bull_bear_synthesis(
+    symbol: str,
+    query: str,
+    analyst_results: list[dict],
+    bull_case: str,
+    bear_case: str,
+    debate_history: list[dict] | None = None,
+) -> dict:
+    """Synthesize bull/bear debate into final trading decision.
+
+    Implements the Trader agent from TradingAgents:
+    - Reviews analyst results, bull case, and bear case
+    - Produces structured decision with BUY/SELL/HOLD
+    - Includes confidence score and reasoning
+    """
+    prompt = _build_synthesis_prompt(symbol, query, analyst_results, bull_case, bear_case, debate_history)
+
+    system = textwrap.dedent("""\
+        你是一位资深交易员，负责综合多方和空方研究员的分析，
+        做出最终的投资决策。
+
+        你的职责：
+        1. 客观评估多做理由和做空理由
+        2. 判断多空力量对比
+        3. 给出明确的交易信号：BUY / SELL / HOLD
+        4. 评估置信度和风险
+        5. 使用中文回答
+
+        输出格式（严格遵循）：
+        {
+            "decision": "BUY" | "SELL" | "HOLD",
+            "confidence": 0.0-1.0,
+            "reasoning": "决策理由...",
+            "entry_price": "参考入场价",
+            "stop_loss": "止损位",
+            "target_price": "目标价",
+            "risk_level": "低" | "中" | "高",
+            "time_horizon": "短期" | "中期" | "长期"
+        }
+    """)
+
+    try:
+        client = _get_client()
+        response = client.messages.create(
+            model="MiniMax-M2.7",
+            max_tokens=512,
+            system=system,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        text = ""
+        for block in response.content:
+            if hasattr(block, "type") and block.type == "text":
+                text = block.text
+                break
+
+        # Parse JSON from response
+        import json, re
+        json_match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group())
+        return {
+            "decision": "HOLD",
+            "confidence": 0.5,
+            "reasoning": text[:200],
+            "entry_price": "N/A",
+            "stop_loss": "N/A",
+            "target_price": "N/A",
+            "risk_level": "中",
+            "time_horizon": "中期",
+        }
+    except Exception as e:
+        return {
+            "decision": "HOLD",
+            "confidence": 0.0,
+            "reasoning": f"LLM合成失败: {e}",
+            "entry_price": "N/A",
+            "stop_loss": "N/A",
+            "target_price": "N/A",
+            "risk_level": "高",
+            "time_horizon": "N/A",
+        }
+
+
+def _build_synthesis_prompt(
+    symbol: str,
+    query: str,
+    analyst_results: list[dict],
+    bull_case: str,
+    bear_case: str,
+    debate_history: list[dict] | None = None,
+) -> str:
+    """Build synthesis prompt from all inputs including debate history."""
+    # Format analyst results
+    analyst_text = []
+    for r in analyst_results:
+        tool = r.get("tool", "unknown")
+        obs = r.get("observation", "")
+        analyst_text.append(f"[{tool}] {obs}")
+
+    parts = [
+        f"# 交易决策合成: {symbol}",
+        f"\n## 用户问题\n{query}",
+        f"\n## 分析师数据汇总\n" + "\n".join(analyst_text),
+    ]
+
+    # Add debate history if available
+    if debate_history:
+        parts.append("\n## 辩论过程")
+        for entry in debate_history:
+            speaker = "🟢 多头" if entry["speaker"] == "bull" else "🔴 空头"
+            round_num = entry["round"]
+            msg_type = {"opening": "开场", "rebuttal": "反驳", "closing": "结案"}.get(entry["type"], entry["type"])
+            content = entry["content"][:300] + "..." if len(entry["content"]) > 300 else entry["content"]
+            parts.append(f"\n### 第{round_num}轮 - {speaker} ({msg_type}):\n{content}")
+    else:
+        parts.append(f"\n## 多头研究员观点\n{bull_case}")
+        parts.append(f"\n## 空头研究员观点\n{bear_case}")
+
+    parts.append("\n请根据以上所有信息，做出最终交易决策。")
+    return "\n".join(parts)
+
+
 def analyze_with_llm_streaming(symbol: str, query: str, results: list[dict]):
     """Streaming version of LLM analysis."""
     prompt = _build_analysis_prompt(symbol, query, results)

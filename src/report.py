@@ -149,20 +149,23 @@ def _format_all_indicators(data: dict) -> str:
     ]
     macd = data.get("macd", {})
     if macd:
-        lines.append(f"  MACD: {macd.get('macd', 'N/A'):.4f} | Signal: {macd.get('signal', 'N/A'):.4f} | Hist: {macd.get('histogram', 'N/A'):.4f}")
+        cur = macd.get("current", macd)
+        lines.append(f"  MACD: {cur.get('macd', 'N/A'):.4f} | Signal: {cur.get('signal', 'N/A'):.4f} | Hist: {cur.get('histogram', 'N/A'):.4f}")
     rsi = data.get("rsi", {})
     if rsi:
-        val = rsi.get("value", "N/A")
+        val = rsi.get("current", rsi.get("value", "N/A"))
         sig = rsi.get("signal", "")
         emoji = "🔴" if sig == "overbought" else "🟢" if sig == "oversold" else "⚪"
         lines.append(f"  RSI(14): {val} {emoji} ({sig})")
     bb = data.get("bollinger", {})
     if bb:
-        lines.append(f"  布林带: 上轨 {bb.get('upper', 'N/A')} | 中轨 {bb.get('middle', 'N/A')} | 下轨 {bb.get('lower', 'N/A')}")
-        lines.append(f"  布林位置: {bb.get('position_pct', 'N/A')}% ({bb.get('signal', '')})")
+        cur = bb.get("current", bb)
+        lines.append(f"  布林带: 上轨 {cur.get('upper', 'N/A')} | 中轨 {cur.get('middle', 'N/A')} | 下轨 {cur.get('lower', 'N/A')}")
+        lines.append(f"  布林位置: {cur.get('position_pct', 'N/A')}% ({bb.get('signal', '')})")
     kdj = data.get("kdj", {})
     if kdj:
-        lines.append(f"  KDJ: K={kdj.get('K', 'N/A')} D={kdj.get('D', 'N/A')} J={kdj.get('J', 'N/A')}")
+        cur = kdj.get("current", kdj)
+        lines.append(f"  KDJ: K={cur.get('K', 'N/A')} D={cur.get('D', 'N/A')} J={cur.get('J', 'N/A')}")
     atr = data.get("atr", "N/A")
     if atr not in ("N/A", None):
         lines.append(f"  ATR(14): {atr}")
@@ -291,29 +294,34 @@ def _generate_signal(results: list[dict]) -> str:
     neutral = 0
 
     for r in results:
-        data = r.get("data", {})
-        # RSI
-        if "rsi" in r.get("tool", "") or "rsi" in data:
-            rsi_val = data.get("current") or (data.get("rsi", {}) if isinstance(data, dict) else None)
+        data = r.get("data")
+        if data is None:
+            continue
+        # RSI: value may be at data["rsi"]["current"] or flat
+        if "rsi" in r.get("tool", "") or (isinstance(data, dict) and "rsi" in data):
+            rsi_entry = (data.get("rsi", {}) if isinstance(data, dict) else {})
+            rsi_val = rsi_entry.get("current") or rsi_entry.get("value")
             if isinstance(rsi_val, dict):
                 rsi_val = rsi_val.get("value")
-            if rsi_val:
+            if rsi_val and isinstance(rsi_val, (int, float)):
                 if rsi_val > 70:
                     bearish += 1
                 elif rsi_val < 30:
                     bullish += 1
                 else:
                     neutral += 1
-        # MACD histogram
-        macd_data = data.get("macd", {}) if isinstance(data, dict) else {}
-        hist = macd_data.get("histogram") or macd_data.get("hist")
-        if hist is not None:
+        # MACD histogram: may be at data["macd"]["current"]["histogram"] or flat
+        macd_data = (data.get("macd", {}) or {}) if isinstance(data, dict) else {}
+        cur = macd_data.get("current", macd_data)
+        hist = cur.get("histogram") or cur.get("hist")
+        if hist is not None and isinstance(hist, (int, float)):
             if hist > 0:
                 bullish += 1
             else:
                 bearish += 1
         # KDJ crossovers
-        crossovers = data.get("crossovers", [])
+        kdj_data = (data.get("kdj", {}) or {}) if isinstance(data, dict) else {}
+        crossovers = kdj_data.get("crossovers", []) or []
         if crossovers:
             recent = crossovers[-1] if crossovers else {}
             if recent.get("type") == "golden_cross":
@@ -364,3 +372,95 @@ def _fmt_market_cap(v) -> str:
     elif v >= 1e6:
         return f"${v/1e6:.2f}M"
     return f"${v:.2f}"
+
+
+# ── Multi-Agent Debate Report Sections ──────────────────────────────────────
+
+def format_debate_report(symbol: str, query: str, debate_result: dict) -> str:
+    """Format full multi-agent debate report.
+
+    Args:
+        symbol: Stock ticker
+        query: Original user query
+        debate_result: Dict from agent.analyze_parallel(use_debate=True)
+            {
+                "tool_results": [...],
+                "bull_case": str,
+                "bear_case": str,
+                "synthesis": dict
+            }
+    """
+    tool_results = debate_result.get("tool_results", [])
+    bull_case = debate_result.get("bull_case", "")
+    bear_case = debate_result.get("bear_case", "")
+    debate_history = debate_result.get("debate_history", [])
+    synthesis = debate_result.get("synthesis", {})
+
+    lines = []
+    lines.append(f"{'='*60}")
+    lines.append(f"  🤖 多智能体辩论分析报告 — {symbol}")
+    lines.append(f"{'='*60}")
+    lines.append(f"  任务: {query}")
+    lines.append(f"{'='*60}\n")
+
+    # ── Analyst Results ──────────────────────────────────────────────────────
+    lines.append(format_report(symbol, query, tool_results))
+
+    # ── Full Debate History ──────────────────────────────────────────────────
+    if debate_history:
+        lines.append("")
+        lines.append(f"{'='*60}")
+        lines.append("  🔄 辩论过程")
+        lines.append(f"{'='*60}")
+
+        for entry in debate_history:
+            speaker = "🟢 多头" if entry["speaker"] == "bull" else "🔴 空头"
+            round_num = entry["round"]
+            msg_type = {"opening": "开场陈述", "rebuttal": "反驳", "closing": "最终陈述"}.get(entry["type"], entry["type"])
+            lines.append(f"\n  ### 第{round_num}轮 - {speaker} ({msg_type})")
+            lines.append(f"  {entry['content'][:500]}")
+
+    else:
+        # Fallback to simple bull/bear display
+        lines.append("")
+        lines.append(f"{'='*60}")
+        lines.append("  🟢 多头研究员观点")
+        lines.append(f"{'='*60}")
+        lines.append(bull_case if bull_case else "[无多头观点]")
+
+        lines.append("")
+        lines.append(f"{'='*60}")
+        lines.append("  🔴 空头研究员观点")
+        lines.append(f"{'='*60}")
+        lines.append(bear_case if bear_case else "[无空头观点]")
+
+    # ── Synthesis ───────────────────────────────────────────────────────────
+    lines.append("")
+    lines.append(f"{'='*60}")
+    lines.append("  📋 交易决策")
+    lines.append(f"{'='*60}")
+
+    decision = synthesis.get("decision", "HOLD")
+    confidence = synthesis.get("confidence", 0.0)
+    reasoning = synthesis.get("reasoning", "N/A")
+    entry = synthesis.get("entry_price", "N/A")
+    stop_loss = synthesis.get("stop_loss", "N/A")
+    target = synthesis.get("target_price", "N/A")
+    risk = synthesis.get("risk_level", "中")
+    horizon = synthesis.get("time_horizon", "中期")
+
+    decision_emoji = {"BUY": "🟢", "SELL": "🔴", "HOLD": "⚪"}.get(decision, "⚪")
+
+    lines.append(f"  决策: {decision_emoji} {decision}")
+    lines.append(f"  置信度: {confidence:.0%}")
+    lines.append(f"  风险等级: {risk}")
+    lines.append(f"  时间视野: {horizon}")
+    lines.append(f"  入场参考价: {entry}")
+    lines.append(f"  止损位: {stop_loss}")
+    lines.append(f"  目标价: {target}")
+    lines.append("")
+    lines.append(f"  决策理由:")
+    lines.append(f"  {reasoning}")
+    lines.append(f"{'='*60}\n")
+
+    return "\n".join(lines)

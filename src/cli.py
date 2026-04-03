@@ -3,10 +3,28 @@
 from __future__ import annotations
 
 import argparse
+import json
+import time
 
 from .agent import ReActAgent, extract_symbol
-from .report import format_report
+from .report import format_report, format_debate_report
 from .agent_tools import list_tools
+
+
+def run_analysis(symbol: str, query: str, args) -> dict | list | str:
+    """Run the analysis and return raw results or formatted report."""
+    agent = ReActAgent(max_steps=10, verbose=args.verbose)
+
+    if args.debate:
+        # Multi-agent debate mode
+        result = agent.analyze_with_debate(query, symbol)
+        if args.format == "json":
+            return result
+        return format_debate_report(symbol, query, result)
+
+    # Normal parallel analysis
+    results = agent.analyze_parallel(query, symbol)
+    return results
 
 
 def main():
@@ -28,7 +46,29 @@ def main():
         choices=["1mo", "3mo", "6mo", "1y", "2y"],
         help="Historical period for indicators (default: 6mo)",
     )
-    parser.add_argument("--agent", action="store_true", help="Use ReAct agent (default: true)")
+    parser.add_argument(
+        "--format", "-f",
+        default="text",
+        choices=["text", "json"],
+        help="Output format (default: text)",
+    )
+    parser.add_argument(
+        "--watch", "-w",
+        metavar="SECONDS",
+        type=int,
+        help="Watch mode: refresh analysis every N seconds",
+    )
+    parser.add_argument(
+        "--debate",
+        action="store_true",
+        help="Enable multi-agent bull/bear debate",
+    )
+    parser.add_argument(
+        "--max-rounds",
+        type=int,
+        default=2,
+        help="Number of debate rebuttal rounds (default: 2)",
+    )
 
     args = parser.parse_args()
 
@@ -47,6 +87,9 @@ def main():
         print("  stock-agent 'AAPL RSI MACD分析'")
         print("  stock-agent '贵州茅台基本面' -s 600519")
         print("  stock-agent 'NVDA技术指标'")
+        print("  stock-agent --debate '特斯拉值得投资吗'")
+        print("  stock-agent --watch 60 'AAPL技术分析'")
+        print("  stock-agent -f json 'AAPL' -s AAPL")
         print("  stock-agent --list-tools")
         return
 
@@ -57,26 +100,51 @@ def main():
         print("   Example: stock-agent '分析趋势' -s AAPL")
         return
 
-    print(f"\n🔍 Analyzing {symbol} ...\n")
+    # Configure agent for debate rounds
+    if args.debate:
+        from .debate import run_debate
+        import functools
+        _orig_run_debate = run_debate
+        run_debate = functools.partial(_orig_run_debate, max_rounds=args.max_rounds)
 
-    # Run agent
-    agent = ReActAgent(max_steps=10, verbose=args.verbose)
-    try:
-        results = agent.analyze(args.query, symbol)
-    except Exception as e:
-        print(f"❌ Agent error: {e}")
-        if args.verbose:
-            import traceback
-            traceback.print_exc()
-        return
+    def do_analysis():
+        print(f"\n🔍 Analyzing {symbol} ...\n")
+        try:
+            result = run_analysis(symbol, args.query, args)
+        except Exception as e:
+            print(f"❌ Agent error: {e}")
+            if args.verbose:
+                import traceback
+                traceback.print_exc()
+            return False
 
-    if not results:
-        print("❌ No results produced")
-        return
+        if not result:
+            print("❌ No results produced")
+            return False
 
-    # Format and print report
-    report = format_report(symbol, args.query, results)
-    print(report)
+        if args.format == "json":
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            if isinstance(result, list):
+                print(format_report(symbol, args.query, result))
+            else:
+                print(result)
+        return True
+
+    # Run once or watch mode
+    if args.watch:
+        print(f"👀 Watch mode: refreshing every {args.watch}s (Ctrl+C to stop)\n")
+        try:
+            while True:
+                success = do_analysis()
+                if not success:
+                    print("⚠️  Analysis failed, retrying...\n")
+                print(f"\n⏰ Next refresh in {args.watch}s ...\n")
+                time.sleep(args.watch)
+        except KeyboardInterrupt:
+            print("\n\n👋 Watch mode stopped.")
+    else:
+        do_analysis()
 
 
 if __name__ == "__main__":
