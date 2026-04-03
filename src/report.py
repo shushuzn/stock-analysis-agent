@@ -297,12 +297,15 @@ def _generate_signal(results: list[dict]) -> str:
         data = r.get("data")
         if data is None:
             continue
-        # RSI: value may be at data["rsi"]["current"] or flat
+        # RSI: value may be at data["rsi"]["current"] or data["current"] flat
         if "rsi" in r.get("tool", "") or (isinstance(data, dict) and "rsi" in data):
             rsi_entry = (data.get("rsi", {}) if isinstance(data, dict) else {})
             rsi_val = rsi_entry.get("current") or rsi_entry.get("value")
             if isinstance(rsi_val, dict):
                 rsi_val = rsi_val.get("value")
+            # Also check flat "current" key (e.g. {"current": 85})
+            if not rsi_val and isinstance(data, dict):
+                rsi_val = data.get("current") or data.get("value")
             if rsi_val and isinstance(rsi_val, (int, float)):
                 if rsi_val > 70:
                     bearish += 1
