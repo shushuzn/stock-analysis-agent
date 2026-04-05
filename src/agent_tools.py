@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import time
 from typing import Any
-from functools import lru_cache
 
 try:
     import yfinance as yf
@@ -104,7 +103,36 @@ class CircuitBreaker:
         return max(0, self._cooldown - (time.time() - self._opened_at))
 
 
+class TokenBucket:
+    """Token bucket rate limiter for external API calls."""
+
+    def __init__(self, capacity: int = 10, refill_rate: float = 1.0):
+        self._tokens = float(capacity)
+        self._capacity = capacity
+        self._refill_rate = refill_rate  # tokens per second
+        self._last_refill = time.time()
+
+    def _refill(self) -> None:
+        now = time.time()
+        elapsed = now - self._last_refill
+        self._tokens = min(self._capacity, self._tokens + elapsed * self._refill_rate)
+        self._last_refill = now
+
+    def acquire(self, cost: int = 1) -> bool:
+        self._refill()
+        if self._tokens >= cost:
+            self._tokens -= cost
+            return True
+        return False
+
+    def wait_time(self, cost: int = 1) -> float:
+        if self._tokens >= cost:
+            return 0
+        return (cost - self._tokens) / self._refill_rate
+
+
 _yf_breaker = CircuitBreaker(failure_threshold=3, cooldown=60)
+_yf_bucket = TokenBucket(capacity=50, refill_rate=5)  # 50 calls max, refills 5/sec
 
 
 # ── Quote ────────────────────────────────────────────────────────────────────
@@ -117,6 +145,10 @@ def get_quote(symbol: str) -> dict[str, Any]:
     if _yf_breaker.is_open:
         wait = _yf_breaker.wait_time()
         return {"error": f"Yahoo Finance rate-limited. Retry in {wait:.0f}s.", "symbol": symbol, "source": "yahooquery"}
+
+    if not _yf_bucket.acquire():
+        wait = _yf_bucket.wait_time()
+        return {"error": f"Yahoo Finance rate limit, retry after {wait:.1f}s.", "symbol": symbol, "source": "yahooquery", "rate_limited": True}
 
     cached = _cached(symbol, "quote")
     if cached is not None:
@@ -133,7 +165,6 @@ def get_quote(symbol: str) -> dict[str, Any]:
 
         p = price_data
         price = p.get("regularMarketPrice")
-        prev_close = p.get("regularMarketPreviousClose")
         change = p.get("regularMarketChangePercent")
 
         _yf_breaker.record_success()
@@ -190,7 +221,6 @@ def get_a_share_quote(symbol: str) -> dict[str, Any]:
 
         p = price_data
         price = p.get("regularMarketPrice")
-        prev_close = p.get("regularMarketPreviousClose")
         change = p.get("regularMarketChangePercent")
 
         _yf_breaker.record_success()
@@ -358,6 +388,30 @@ def calc_rsi(symbol: str, period: str = "6mo") -> dict[str, Any]:
     return result
 
 
+def check_rsi_threshold(symbol: str, threshold: float = 30, period: str = "6mo") -> dict[str, Any]:
+    """Check if RSI is below (oversold) or above (overbought) a custom threshold."""
+    if not YFINANCE_AVAILABLE:
+        return {"error": "yfinance not installed"}
+
+    df = _get_historical_data(symbol, period)
+    if df is None or df.empty:
+        return {"error": f"No data for {symbol}"}
+
+    result = _compute_rsi(df["Close"])
+    current = result.get("current")
+    if current is None:
+        return {"error": "RSI calculation failed"}
+
+    oversold = current < threshold
+    return {
+        "symbol": symbol,
+        "rsi": current,
+        "threshold": threshold,
+        "is_oversold": oversold,
+        "signal": "oversold" if oversold else "neutral",
+    }
+
+
 def calc_macd(symbol: str, period: str = "6mo") -> dict[str, Any]:
     """Calculate MACD."""
     if not YFINANCE_AVAILABLE:
@@ -380,6 +434,48 @@ def calc_bollinger(symbol: str, period: str = "6mo") -> dict[str, Any]:
         return {"error": f"No data for {symbol}"}
 
     return _compute_bollinger(df["Close"])
+
+
+def calc_bollinger_squeeze(symbol: str, period: str = "6mo", lookback: int = 120, percentile: float = 20) -> dict[str, Any]:
+    """Detect Bollinger Band squeeze (bandwidth contraction).
+
+    Returns current bandwidth and its historical percentile rank.
+    When bandwidth falls below `percentile`th historical percentile, it signals
+    a potential volatility expansion setup.
+    """
+    if not YFINANCE_AVAILABLE:
+        return {"error": "yfinance not installed"}
+
+    df = _get_historical_data(symbol, period)
+    if df is None or df.empty:
+        return {"error": f"No data for {symbol}"}
+
+    close = df["Close"]
+    if len(close) < lookback:
+        lookback = max(10, len(close) // 2)
+
+    sma = close.rolling(window=20).mean()
+    std = close.rolling(window=20).std()
+    upper = sma + (2 * std)
+    lower = sma - (2 * std)
+    bandwidth = (upper - lower) / sma * 100
+
+    current_bw = bandwidth.iloc[-1]
+    hist_bw = bandwidth.dropna().iloc[-lookback:]
+
+    if len(hist_bw) < 2:
+        return {"error": f"Not enough data for percentile calculation (need {lookback})"}
+
+    pct_rank = (hist_bw < current_bw).sum() / len(hist_bw) * 100
+    is_squeeze = pct_rank <= percentile
+
+    return {
+        "bandwidth": round(current_bw, 4),
+        "percentile_rank": round(pct_rank, 1),
+        "is_squeeze": is_squeeze,
+        "threshold": round(hist_bw.quantile(percentile / 100), 4),
+        "signal": "squeeze" if is_squeeze else "normal",
+    }
 
 
 def calc_kdj(symbol: str, period: str = "6mo") -> dict[str, Any]:
@@ -635,14 +731,94 @@ def compare_stocks(symbols: str | list, period: str = "6mo") -> dict[str, Any]:
     return results
 
 
+# ── Backtest ─────────────────────────────────────────────────────────────────
+
+def backtest_signal(symbol: str, days: int = 365) -> dict[str, Any]:
+    """Backtest RSI+MACD signal accuracy against historical price data.
+
+    Simulates: buy when bull signal, sell when bear signal.
+    Returns win rate, total return, and per-signal stats.
+    """
+    if not YFINANCE_AVAILABLE:
+        return {"error": "yfinance not installed"}
+
+    try:
+        ticker = yf.Ticker(symbol)
+        df = ticker.history(period=f"{days}d")[["Close"]]
+    except Exception as e:
+        return {"error": str(e)}
+
+    if len(df) < 60:
+        return {"error": f"Insufficient data: {len(df)} rows"}
+
+    # Compute RSI and MACD on full series
+    delta = df["Close"].diff()
+    gain = delta.clip(lower=0).rolling(14).mean()
+    loss = (-delta.clip(upper=0)).rolling(14).mean()
+    rs = gain / loss.replace(0, 1e-10)
+    rsi = 100 - (100 / (1 + rs))
+
+    exp1 = df["Close"].ewm(span=12, adjust=False).mean()
+    exp2 = df["Close"].ewm(span=26, adjust=False).mean()
+    macd_line = exp1 - exp2
+    signal_line = macd_line.ewm(span=9, adjust=False).mean()
+    macd_hist = macd_line - signal_line
+
+    # Generate daily signals
+    signals = []
+    for i in range(30, len(df)):
+        r = rsi.iloc[i]
+        m = macd_hist.iloc[i]
+        if r and m:
+            if r < 30 and m > 0:
+                signals.append(("bull", df["Close"].iloc[i]))
+            elif r > 70 and m < 0:
+                signals.append(("bear", df["Close"].iloc[i]))
+
+    if len(signals) < 2:
+        return {"error": f"Too few signals generated: {len(signals)}", "total_signals": len(signals)}
+
+    # Simulate trades
+    trades = []
+    for i in range(1, len(signals)):
+        prev_sig, prev_price = signals[i - 1]
+        curr_sig, curr_price = signals[i]
+        ret = (curr_price - prev_price) / prev_price
+        trades.append({
+            "entry": prev_sig,
+            "exit": curr_sig,
+            "entry_price": round(prev_price, 2),
+            "exit_price": round(curr_price, 2),
+            "return_pct": round(ret * 100, 2),
+            "profitable": ret > 0,
+        })
+
+    winners = [t for t in trades if t["profitable"]]
+    total_ret = sum(t["return_pct"] for t in trades)
+
+    return {
+        "symbol": symbol,
+        "days": days,
+        "total_signals": len(signals),
+        "total_trades": len(trades),
+        "win_rate": round(len(winners) / len(trades) * 100, 1) if trades else 0,
+        "total_return_pct": round(total_ret, 2),
+        "avg_return_pct": round(total_ret / len(trades), 2) if trades else 0,
+        "bull_trades": len([t for t in trades if t["entry"] == "bull"]),
+        "bear_trades": len([t for t in trades if t["entry"] == "bear"]),
+    }
+
+
 # ── Tool Registry (for compatibility) ────────────────────────────────────────
 
 TOOLS = {
     "get_quote": {"fn": get_quote, "desc": "Get US stock quote", "args": {"symbol": "str"}},
     "get_a_share_quote": {"fn": get_a_share_quote, "desc": "Get China A-share quote", "args": {"symbol": "str"}},
     "calc_rsi": {"fn": calc_rsi, "desc": "Calculate RSI", "args": {"symbol": "str", "period": "str"}},
+    "check_rsi_threshold": {"fn": check_rsi_threshold, "desc": "Check if RSI crosses custom threshold", "args": {"symbol": "str", "threshold": "float", "period": "str"}},
     "calc_macd": {"fn": calc_macd, "desc": "Calculate MACD", "args": {"symbol": "str", "period": "str"}},
     "calc_bollinger": {"fn": calc_bollinger, "desc": "Calculate Bollinger Bands", "args": {"symbol": "str", "period": "str"}},
+    "calc_bollinger_squeeze": {"fn": calc_bollinger_squeeze, "desc": "Detect Bollinger Band squeeze (bandwidth contraction)", "args": {"symbol": "str", "period": "str", "lookback": "int", "percentile": "float"}},
     "calc_kdj": {"fn": calc_kdj, "desc": "Calculate KDJ", "args": {"symbol": "str", "period": "str"}},
     "calc_atr": {"fn": calc_atr, "desc": "Calculate ATR", "args": {"symbol": "str", "period": "str"}},
     "calc_all": {"fn": calc_all, "desc": "Calculate all indicators", "args": {"symbol": "str", "period": "str"}},
@@ -697,6 +873,8 @@ def select_tools_for_task(task: str, symbol: str) -> list[tuple[str, dict]]:
         selections.append(("calc_atr", {"symbol": symbol}))
     if "布林" in task_lower or "bollinger" in task_lower:
         selections.append(("calc_bollinger", {"symbol": symbol}))
+    if "收口" in task_lower or "squeeze" in task_lower:
+        selections.append(("calc_bollinger_squeeze", {"symbol": symbol}))
 
     # Trend
     if any(kw in task_lower for kw in ["趋势", "均线", "ma", "trend", "交叉"]):

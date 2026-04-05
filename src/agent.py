@@ -148,7 +148,7 @@ class ReActAgent:
         from .llm import bull_bear_synthesis
 
         if self.verbose:
-            print(f"[Agent] Running multi-round bull/bear debate...")
+            print("[Agent] Running multi-round bull/bear debate...")
 
         debate_result = run_debate(symbol, query, results, max_rounds=2)
         debate_history = debate_result["debate_history"]

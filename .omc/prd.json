@@ -1,0 +1,48 @@
+{
+  "task": "stock-analysis-agent idea pool: implement remaining seeds",
+  "stories": [
+    {
+      "id": "US-001",
+      "story": "布林带收口识别",
+      "description": "识别Bandwidth低于历史N%分位，预警波动率收缩后的突破机会",
+      "approach": "扩展_compute_bollinger计算bandwidth = (upper-lower)/middle，添加percentile分位判断，集成到watchlist alert系统",
+      "acceptanceCriteria": [
+        "agent_tools.py新增detect_bollinger_squeeze(symbol, percentile=20)函数",
+        "Bandwidth计算正确: (upper-lower)/middle",
+        "返回当前bandwidth和历史percentile分位",
+        "测试: calc_bollinger_squeeze('AAPL')返回bandwidth和percentile字段",
+        "集成到watchlist: 触发时通过/notify推送预警"
+      ],
+      "status": "completed",
+      "passes": true
+    },
+    {
+      "id": "US-002",
+      "story": "RSI超跌策略模板",
+      "description": "一键设置RSI<30超跌信号监控，支持自定义阈值和持仓周期",
+      "approach": "前端RSI参数面板，后端新增RSI策略模板接口，watchlist alert扩展支持RSI条件",
+      "acceptanceCriteria": [
+        "GET /watchlist/rsi?symbol=AAPL&threshold=30 返回RSI值和是否超跌",
+        "POST /watchlist/alert 支持rsi_threshold参数",
+        "GET /watchlist/check 超出RSI阈值时触发预警",
+        "测试: check_rsi_threshold('AAPL', 30)返回is_oversold"
+      ],
+      "status": "completed",
+      "passes": true
+    },
+    {
+      "id": "US-003",
+      "story": "API限流保护层",
+      "description": "外部数据请求层增加令牌桶限流，防止触发免费API上游限制",
+      "approach": "在agent_tools.py或独立rate_limiter.py实现令牌桶，装饰器应用到所有外部API调用",
+      "acceptanceCriteria": [
+        "TokenBucket类实现acquire()和wait_time()方法",
+        "get_quote调用acquire，超限时返回rate_limited: true",
+        "容量50，最大突发，5tokens/秒补充",
+        "58测试全过"
+      ],
+      "status": "completed",
+      "passes": true
+    }
+  ]
+}

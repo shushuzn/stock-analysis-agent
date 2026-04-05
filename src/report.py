@@ -462,7 +462,7 @@ def format_debate_report(symbol: str, query: str, debate_result: dict) -> str:
     lines.append(f"  止损位: {stop_loss}")
     lines.append(f"  目标价: {target}")
     lines.append("")
-    lines.append(f"  决策理由:")
+    lines.append("  决策理由:")
     lines.append(f"  {reasoning}")
     lines.append(f"{'='*60}\n")
 

@@ -9,7 +9,6 @@ Implements the researcher team from TradingAgents:
 from __future__ import annotations
 
 import textwrap
-from typing import Any
 
 from .llm import _get_client
 
@@ -98,7 +97,7 @@ def _build_researcher_prompt(
 
     parts.append(f"# {stance.upper()} RESEARCHER: {symbol}")
     parts.append(f"\n## 用户问题\n{query}")
-    parts.append(f"\n## 分析师数据\n")
+    parts.append("\n## 分析师数据\n")
 
     for r in analyst_results:
         tool = r.get("tool", "unknown")
@@ -110,19 +109,19 @@ def _build_researcher_prompt(
             continue
 
         if tool == "get_quote":
-            parts.append(f"\n### 报价数据\n")
+            parts.append("\n### 报价数据\n")
             parts.append(f"- 价格: ${data.get('price', 'N/A')}")
             parts.append(f"- 涨跌幅: {data.get('change_pct', 'N/A')}%")
             parts.append(f"- 52周范围: ${data.get('year52_low', 'N/A')} - ${data.get('year52_high', 'N/A')}")
 
         elif tool == "get_a_share_quote":
-            parts.append(f"\n### A股报价\n")
+            parts.append("\n### A股报价\n")
             parts.append(f"- 价格: ¥{data.get('price', 'N/A')}")
             parts.append(f"- 涨跌幅: {data.get('change_pct', 'N/A')}%")
             parts.append(f"- 52周范围: ¥{data.get('year52_low', 'N/A')} - ¥{data.get('year52_high', 'N/A')}")
 
         elif tool == "get_fundamentals":
-            parts.append(f"\n### 基本面\n")
+            parts.append("\n### 基本面\n")
             parts.append(f"- P/E: {data.get('pe_ratio', 'N/A')}")
             parts.append(f"- EPS: {data.get('eps', 'N/A')}")
             parts.append(f"- ROE: {data.get('roe', 'N/A')}")
@@ -132,38 +131,37 @@ def _build_researcher_prompt(
             macd = data.get("macd", {})
             rsi = data.get("rsi", {})
             bb = data.get("bollinger", {})
-            kdj = data.get("kdj", {})
             atr = data.get("atr", "N/A")
 
-            parts.append(f"\n### 技术指标\n")
+            parts.append("\n### 技术指标\n")
             parts.append(f"- MACD: {macd.get('histogram', 0):.4f} (正=看涨)")
             parts.append(f"- RSI: {rsi.get('value', 'N/A')} ({rsi.get('signal', '')})")
             parts.append(f"- 布林带位置: {bb.get('position_pct', 'N/A')}%")
             parts.append(f"- ATR: {atr}")
 
         elif tool == "calc_rsi":
-            parts.append(f"\n### RSI\n")
+            parts.append("\n### RSI\n")
             parts.append(f"- 值: {data.get('current', 'N/A')}")
             parts.append(f"- 信号: {data.get('signal', 'N/A')}")
 
         elif tool == "calc_macd":
             cur = data.get("current", {})
-            parts.append(f"\n### MACD\n")
+            parts.append("\n### MACD\n")
             parts.append(f"- MACD: {cur.get('macd', 'N/A')}")
             parts.append(f"- Signal: {cur.get('signal', 'N/A')}")
             parts.append(f"- Histogram: {cur.get('histogram', 'N/A')} (正=看涨)")
 
         elif tool == "analyze_trend":
-            parts.append(f"\n### 趋势分析\n")
+            parts.append("\n### 趋势分析\n")
             parts.append(f"- 趋势: {data.get('trend', 'N/A')}")
             parts.append(f"- 强度: {data.get('strength', 'N/A')}")
 
         elif tool == "get_summary":
-            parts.append(f"\n### 综合摘要\n")
+            parts.append("\n### 综合摘要\n")
             parts.append(f"- 信号: {data.get('signal', 'N/A')}")
             parts.append(f"- 趋势: {data.get('trend', 'N/A')}")
 
-    parts.append(f"\n## 你的任务\n")
+    parts.append("\n## 你的任务\n")
     if stance == "bullish":
         parts.append("根据以上数据，构建最有力的做多理由。使用中文回答。")
     else:

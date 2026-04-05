@@ -213,7 +213,8 @@ def bull_bear_synthesis(
                 break
 
         # Parse JSON from response
-        import json, re
+        import json
+        import re
         json_match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
         if json_match:
             return json.loads(json_match.group())
@@ -259,7 +260,7 @@ def _build_synthesis_prompt(
     parts = [
         f"# 交易决策合成: {symbol}",
         f"\n## 用户问题\n{query}",
-        f"\n## 分析师数据汇总\n" + "\n".join(analyst_text),
+        "\n## 分析师数据汇总\n" + "\n".join(analyst_text),
     ]
 
     # Add debate history if available

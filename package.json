@@ -1,0 +1,13 @@
+{
+  "name": "stock-analysis-agent",
+  "version": "0.0.1",
+  "description": "A project for stock-analysis-agent",
+  "scripts": {
+    "dev": "echo \"No dev script\"",
+    "test": "echo \"No test script\""
+  },
+  "keywords": [
+    "automation",
+    "tool"
+  ]
+}

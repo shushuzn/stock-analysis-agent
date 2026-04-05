@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"ruff check \\\"D:\\\\OpenClaw\\\\workspace\\\\80-PROJECTS\\\\stock-analysis-agent\\\\src\\\" 2>&1\"}",
+  "error": "Exit code 1\nF821 Undefined name `check_rsi_threshold`\n   --> src\\api.py:426:14\n    |\n424 | async def watchlist_rsi(symbol: str, threshold: float = 30, period: str = \"6mo\"):\n425 |     \"\"\"Check RSI threshold for a symbol.\"\"\"\n426 |     result = check_rsi_threshold(symbol, threshold, period)\n    |              ^^^^^^^^^^^^^^^^^^^\n427 |     if \"error\" in result:\n428 |         raise HTTPException(status_code=400, detail=result[\"error\"])\n    |\n\nFound 1 error.",
+  "timestamp": "2026-04-05T02:40:19.864Z",
+  "retry_count": 1
+}

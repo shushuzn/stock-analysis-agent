@@ -1,9 +1,17 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1774944997466,
+  "lastScanned": 1775326754112,
   "projectRoot": "D:\\OpenClaw\\workspace\\80-PROJECTS\\stock-analysis-agent",
   "techStack": {
     "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
       {
         "name": "Python",
         "version": null,
@@ -25,15 +33,18 @@
         "category": "testing"
       }
     ],
-    "packageManager": null,
+    "packageManager": "npm",
     "runtime": null
   },
   "build": {
     "buildCommand": null,
-    "testCommand": "pytest",
+    "testCommand": "npm test",
     "lintCommand": "ruff check",
-    "devCommand": null,
-    "scripts": {}
+    "devCommand": "npm run dev",
+    "scripts": {
+      "dev": "echo \"No dev script\"",
+      "test": "echo \"No test script\""
+    }
   },
   "conventions": {
     "namingStyle": "snake_case",
@@ -55,8 +66,8 @@
     "src": {
       "path": "src",
       "purpose": "Source code",
-      "fileCount": 10,
-      "lastAccessed": 1774944997436,
+      "fileCount": 11,
+      "lastAccessed": 1775326754003,
       "keyFiles": [
         "agent.py",
         "agent_tools.py",
@@ -69,7 +80,7 @@
       "path": "tests",
       "purpose": "Test files",
       "fileCount": 6,
-      "lastAccessed": 1774944997437,
+      "lastAccessed": 1775326754066,
       "keyFiles": [
         "conftest.py",
         "test_agent.py",
@@ -81,46 +92,64 @@
   },
   "hotPaths": [
     {
+      "path": "src\\api.py",
+      "accessCount": 61,
+      "lastAccessed": 1775356830133,
+      "type": "file"
+    },
+    {
+      "path": "index.html",
+      "accessCount": 44,
+      "lastAccessed": 1775355855019,
+      "type": "file"
+    },
+    {
       "path": "src\\agent_tools.py",
-      "accessCount": 71,
-      "lastAccessed": 1774947676137,
+      "accessCount": 15,
+      "lastAccessed": 1775356755418,
       "type": "file"
     },
     {
-      "path": "src\\report.py",
-      "accessCount": 8,
-      "lastAccessed": 1774947234468,
-      "type": "directory"
+      "path": "C:\\Users\\adm\\.claude\\CLAUDE.md",
+      "accessCount": 4,
+      "lastAccessed": 1775356076441,
+      "type": "file"
     },
     {
-      "path": "src\\cli.py",
+      "path": "src\\watchlist.py",
       "accessCount": 3,
-      "lastAccessed": 1774945877371,
+      "lastAccessed": 1775356603613,
       "type": "file"
     },
     {
-      "path": "",
+      "path": "src\\tts.py",
       "accessCount": 2,
-      "lastAccessed": 1774945815065,
+      "lastAccessed": 1775355656648,
+      "type": "file"
+    },
+    {
+      "path": "src",
+      "accessCount": 2,
+      "lastAccessed": 1775356042704,
       "type": "directory"
     },
     {
-      "path": "pyproject.toml",
-      "accessCount": 2,
-      "lastAccessed": 1774945887929,
+      "path": "src\\portfolio.py",
+      "accessCount": 1,
+      "lastAccessed": 1775354531478,
       "type": "file"
     },
     {
-      "path": "__main__.py",
+      "path": "src\\export_pdf.py",
       "accessCount": 1,
-      "lastAccessed": 1774945795418,
+      "lastAccessed": 1775354757255,
       "type": "file"
     },
     {
-      "path": "C:\\Users\\adm\\.claude\\projects\\D--OpenClaw-workspace\\memory\\MEMORY.md",
+      "path": "C:\\Users\\adm\\.claude\\plugins\\cache\\superpowers-dev\\superpowers\\5.0.5\\skills\\brainstorming\\SKILL.md",
       "accessCount": 1,
-      "lastAccessed": 1775218350361,
-      "type": "file"
+      "lastAccessed": 1775355374814,
+      "type": "directory"
     }
   ],
   "userDirectives": []
