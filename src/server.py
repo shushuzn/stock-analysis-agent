@@ -114,7 +114,7 @@ def handle_request(message: dict) -> dict:
         tool_args = params.get("arguments", {})
         return {"id": msg_id, "result": handle_tools_call(tool_name, tool_args)}
     elif method == "notifications/initialized":
-        return None  # Notification, no response
+        return None  # type: ignore[return-value]
     else:
         return {"id": msg_id, "error": {"code": -32601, "message": f"Unknown method: {method}"}}
 

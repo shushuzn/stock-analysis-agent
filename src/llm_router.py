@@ -117,7 +117,7 @@ def _ollama_complete(
     )
     with urllib.request.urlopen(req, timeout=60) as resp:
         result = __import__("json").loads(resp.read())
-    return result["message"]["content"]
+    return result["message"]["content"]  # type: ignore[no-any-return]
 
 
 # ── Local model via MiniMax-compatible endpoint ───────────────────────────────
@@ -160,7 +160,7 @@ def _local_complete(
     )
     with urllib.request.urlopen(req, timeout=120) as resp:
         result = __import__("json").loads(resp.read())
-    return result["choices"][0]["message"]["content"]
+    return result["choices"][0]["message"]["content"]  # type: ignore[no-any-return]
 
 
 # ── Main router ──────────────────────────────────────────────────────────────
@@ -224,7 +224,7 @@ class LLMRouter:
             if hasattr(block, "type") and block.type == "text":
                 self.cost_tracker.minimax_calls += 1
                 self.cost_tracker.minimax_tokens += response.usage.output_tokens if hasattr(response, "usage") else 0
-                return block.text
+                return block.text  # type: ignore[no-any-return]
         return str(response.content)
 
     def complete(self, prompt: str, system: str | None = None, max_tokens: int = 1024) -> LLMResult:

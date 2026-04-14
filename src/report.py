@@ -314,8 +314,10 @@ def _generate_signal(results: list[dict]) -> str:
                     neutral += 1
         # MACD histogram: may be at data["macd"]["current"]["histogram"] or flat
         macd_data = (data.get("macd", {}) or {}) if isinstance(data, dict) else {}
-        cur = macd_data.get("current", macd_data)
-        hist = cur.get("histogram") or cur.get("hist")
+        cur = macd_data.get("current", {}) or {}
+        hist = cur.get("histogram") if isinstance(cur, dict) else None
+        if hist is None:
+            hist = cur.get("hist") if isinstance(cur, dict) else None
         if hist is not None and isinstance(hist, (int, float)):
             if hist > 0:
                 bullish += 1

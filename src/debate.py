@@ -191,7 +191,7 @@ def _call_researcher(system: str, prompt: str, max_tokens: int = 1024) -> str:
 
             for block in response.content:
                 if hasattr(block, "type") and block.type == "text":
-                    return block.text
+                    return block.text  # type: ignore[no-any-return]
 
             return str(response.content)
         except Exception as e:

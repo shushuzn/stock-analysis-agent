@@ -146,7 +146,7 @@ def analyze_with_llm(symbol: str, query: str, results: list[dict]) -> str:
         # Extract text from response
         for block in response.content:
             if hasattr(block, "type") and block.type == "text":
-                return block.text
+                return block.text  # type: ignore[no-any-return]
 
         return str(response.content)
     except Exception as e:
@@ -214,7 +214,7 @@ def bull_bear_synthesis(
         import re
         json_match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
         if json_match:
-            return json.loads(json_match.group())
+            return json.loads(json_match.group())  # type: ignore[no-any-return]
         return {
             "decision": "HOLD",
             "confidence": 0.5,

@@ -14,7 +14,7 @@ def _load() -> dict[str, Any]:
     if not DB_PATH.exists():
         return {"symbols": [], "alerts": {}}
     try:
-        return json.loads(DB_PATH.read_text())
+        return json.loads(DB_PATH.read_text())  # type: ignore[no-any-return]
     except Exception:
         return {"symbols": [], "alerts": {}}
 

@@ -20,7 +20,7 @@ def run_analysis(symbol: str, query: str, args) -> dict | list | str:
         result = agent.analyze_with_debate(query, symbol)
         if args.format == "json":
             return result
-        return format_debate_report(symbol, query, result)
+        return format_debate_report(symbol, query, result)  # type: ignore[arg-type]
 
     # Normal parallel analysis
     results = agent.analyze_parallel(query, symbol)

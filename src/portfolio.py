@@ -14,7 +14,7 @@ def _load() -> dict[str, Any]:
     if not DB_PATH.exists():
         return {"positions": {}, "history": []}
     try:
-        return json.loads(DB_PATH.read_text())
+        return json.loads(DB_PATH.read_text())  # type: ignore[no-any-return]
     except Exception:
         return {"positions": {}, "history": []}
 
@@ -84,12 +84,12 @@ def get_position(symbol: str) -> dict[str, Any]:
 
 def get_all_positions() -> dict[str, Any]:
     """Get all positions."""
-    return _load()["positions"]
+    return _load()["positions"]  # type: ignore[no-any-return]
 
 
 def get_history(limit: int = 50) -> list[dict]:
     data = _load()
-    return data["history"][-limit:]
+    return data["history"][-limit:]  # type: ignore[no-any-return]
 
 
 def clear_all() -> None:

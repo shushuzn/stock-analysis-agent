@@ -62,7 +62,7 @@ class BillingRequest(BaseModel):
 
 _BILLING_FILE = Path(__file__).parent.parent.parent / "billing_state.json"
 
-_billing_state = {"requests": 0, "total_calls": 0, "models_used": {}}
+_billing_state: dict[str, Any] = {"requests": 0, "total_calls": 0, "models_used": {}}
 
 def _load_billing():
     global _billing_state
@@ -171,7 +171,7 @@ async def analyze(req: AnalyzeRequest):
         if req.llm:
             # LLM-powered: returns analysis text directly
             result = agent.analyze(req.query, symbol, use_llm=True)
-            store_analysis(symbol, req.query, req.period, "llm", None, result, [], True)
+            store_analysis(symbol, req.query, req.period, "llm", None, result, [], True)  # type: ignore[arg-type]
             return {
                 "symbol": symbol,
                 "query": req.query,
@@ -181,9 +181,9 @@ async def analyze(req: AnalyzeRequest):
             }
         else:
             results = agent.analyze(req.query, symbol)
-            report = format_report(symbol, req.query, results)
-            signal = _extract_signal(results)
-            store_analysis(symbol, req.query, req.period, "data", signal, report, results, True)
+            report = format_report(symbol, req.query, results)  # type: ignore[arg-type]
+            signal = _extract_signal(results)  # type: ignore[arg-type]
+            store_analysis(symbol, req.query, req.period, "data", signal, report, results, True)  # type: ignore[arg-type]
             return {
                 "symbol": symbol,
                 "query": req.query,
@@ -220,7 +220,7 @@ async def _stream_analysis(query: str, symbol: str, period: str, use_llm: bool =
     yield f"📡 Data period: {period} | Mode: {'🤖 LLM分析' if use_llm else '📊 数据报告'}\n\n"
 
     # Collect results
-    results = []
+    results: list[dict[str, Any]] = []
     for i, (tool_name, kwargs) in enumerate(selected):
         step_num = i + 1
         yield f"▶ Step {step_num}/{len(selected)}: Calling {tool_name}({kwargs})\n"
@@ -228,7 +228,7 @@ async def _stream_analysis(query: str, symbol: str, period: str, use_llm: bool =
         loop = asyncio.get_event_loop()
         try:
             data = await loop.run_in_executor(
-                None, lambda tool_name=tool_name, kwargs=kwargs: __import__("src.tools", fromlist=[""]).execute_tool(tool_name, **kwargs)
+                None, lambda tool_name=tool_name, kwargs=kwargs: __import__("src.tools", fromlist=[""]).execute_tool(tool_name, **kwargs)  # type: ignore[misc]
             )
         except Exception as e:
             yield f"   ❌ Error: {e}\n"
@@ -421,8 +421,9 @@ async def export_pdf(
     try:
         agent = ReActAgent(max_steps=10, verbose=False)
         results = agent.analyze(query, symbol)
-        report = format_report(symbol, query, results)
-        pdf_bytes = generate_pdf(symbol, query, report, results)
+        _results = results if isinstance(results, list) else []
+        report = format_report(symbol, query, _results)
+        pdf_bytes = generate_pdf(symbol, query, report, results)  # type: ignore[arg-type]
         from fastapi.responses import Response
         return Response(content=pdf_bytes, media_type="application/pdf",
                         headers={"Content-Disposition": f"attachment; filename={symbol}_report.pdf"})

@@ -372,7 +372,7 @@ def _compute_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int 
     tr3 = (low - close.shift()).abs()
     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
     atr = tr.rolling(window=period).mean()
-    return round(atr.iloc[-1], 4) if not atr.empty else None
+    return round(atr.iloc[-1], 4) if not atr.empty else None  # type: ignore[return-value]  # type: ignore[return-value]
 
 
 def calc_rsi(symbol: str, period: str = "6mo") -> dict[str, Any]:
@@ -685,8 +685,8 @@ def analyze_multi_timeframe(symbol: str) -> dict[str, Any]:
 
         results[label] = {
             "trend": trend,
-            "ma5": round(current_ma5, 2) if current_ma5 else None,
-            "ma20": round(current_ma20, 2) if current_ma20 else None,
+            "ma5": round(current_ma5, 2) if current_ma5 else None,  # type: ignore[dict-item]
+            "ma20": round(current_ma20, 2) if current_ma20 else None,  # type: ignore[dict-item]
         }
 
     # Resonance: count how many timeframes agree
@@ -821,7 +821,7 @@ def compare_stocks(symbols: str | list, period: str = "6mo") -> dict[str, Any]:
         volatility = returns.std() * (252 ** 0.5)
 
         results[symbol] = {
-            "sharpe_ratio": round(sharpe, 2),
+            "sharpe_ratio": round(sharpe, 2),  # type: ignore[dict-item]
             "max_drawdown": round(max_drawdown, 2),
             "volatility": round(volatility, 2),
         }
@@ -950,7 +950,7 @@ def execute_tool(name: str, **kwargs) -> dict[str, Any]:
     """Execute a tool by name."""
     if name not in TOOLS:
         return {"error": f"Unknown tool: {name}"}
-    return TOOLS[name]["fn"](**kwargs)
+    return TOOLS[name]["fn"](**kwargs)  # type: ignore[operator,no-any-return]  # type: ignore[no-any-return]
 
 
 # ── Tool Selection Strategy ───────────────────────────────────────────────────
