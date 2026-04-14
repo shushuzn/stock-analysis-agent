@@ -65,7 +65,8 @@ class Scheduler:
                 agent = ReActAgent(max_steps=6, verbose=False)
                 r = agent.analyze(f"{sym}技术分析", sym)
                 results.append(r)
-                _r: list[dict] = r if isinstance(r, list) else []; store_analysis(sym, f"{sym}技术分析", period, "data", None, format_report(sym, f"{sym}技术分析", _r), _r, True)
+                _r: list[dict] = r if isinstance(r, list) else []
+                store_analysis(sym, f"{sym}技术分析", period, "data", None, format_report(sym, f"{sym}技术分析", _r), _r, True)
             except Exception:
                 pass
 
