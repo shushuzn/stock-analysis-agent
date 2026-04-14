@@ -18,11 +18,11 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-# Use relative import when run as package (python -m), absolute when run as script
+# Conditional import: relative for package mode (`python -m src.agent`), absolute for script mode
 if __spec__ is not None and __spec__.parent:
     from .agent_tools import execute_tool, select_tools_for_task
-else:
-    from agent_tools import execute_tool, select_tools_for_task
+else:  # pragma: no cover
+    from agent_tools import execute_tool, select_tools_for_task  # type: ignore[no-redef]
 
 
 @dataclass
@@ -211,7 +211,7 @@ class ReActAgent:
 
         return asyncio.run(_run())
 
-    def analyze_with_debate(self, query: str, symbol: str) -> dict:
+    def analyze_with_debate(self, query: str, symbol: str) -> list[dict] | dict:
         """Full multi-agent debate analysis (entry point for debate mode).
 
         Orchestrates: parallel tool execution → bull researcher →
