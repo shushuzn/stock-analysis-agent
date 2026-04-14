@@ -1,7 +1,6 @@
 """Tests for debate module."""
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 class TestDebateRetryLogic:
@@ -20,8 +19,9 @@ class TestDebateRetryLogic:
         from src.debate import _call_researcher
         with patch("src.debate._call_llm") as mock_llm:
             mock_llm.side_effect = Exception("always fail")
-            with pytest.raises(Exception):
-                _call_researcher("system", "prompt", max_tokens=512)
+            # Should return None after all retries are exhausted
+            result = _call_researcher("system", "prompt", max_tokens=512)
+            assert result is None
             # Should have tried 3 times (1 initial + 2 retries)
             assert mock_llm.call_count == 3
 

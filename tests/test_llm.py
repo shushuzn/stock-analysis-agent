@@ -1,6 +1,5 @@
 """Tests for the LLM module."""
 
-import pytest
 from src.llm import _build_analysis_prompt
 
 

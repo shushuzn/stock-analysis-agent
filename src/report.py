@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 
-
 def format_report(symbol: str, task: str, results: list[dict]) -> str:
     """Format all tool results into a coherent analysis report."""
     lines = []

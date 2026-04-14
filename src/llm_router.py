@@ -15,9 +15,9 @@ from __future__ import annotations
 
 import os
 import textwrap
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Generator
 
 import anthropic
 
@@ -377,7 +377,6 @@ def analyze_with_llm_streaming(
             system=system,
             messages=[{"role": "user", "content": prompt}],
         ) as stream:
-            for text in stream.text_stream:
-                yield text
+            yield from stream.text_stream
     except Exception as e:
         yield f"[LLM分析失败: {e}]"

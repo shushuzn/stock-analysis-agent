@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from .agent import ReActAgent
-from .report import format_report
 from .persistence import store_analysis
+from .report import format_report
 from .watchlist import get_all as wl_get_all
 
 
@@ -73,8 +73,8 @@ class Scheduler:
         sckey = cfg.get("serverchan_sckey") or cfg.get("sckey")
         if sckey and results:
             try:
-                import urllib.request
                 import urllib.parse
+                import urllib.request
                 summary = f"📊 自动分析完成 ({len(results)}只股票)"
                 url = f"https://wxpusher.zjiecode.com/api/send/message/?appToken={sckey}&content={urllib.parse.quote(summary)}&contentType=1"
                 req = urllib.request.Request(url, headers={"User-Agent": "StockAnalysisAgent/1.0"})

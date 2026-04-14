@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import sqlite3
 import json
+import sqlite3
 import time
 from pathlib import Path
 from typing import Any
@@ -87,7 +87,7 @@ def get_history(symbol: str | None = None, limit: int = 50) -> list[dict[str, An
         cols = ["id","timestamp","stock_symbol","query","period","mode","signal","report","tool_results","success"]
         results = []
         for row in rows:
-            r = dict(zip(cols, row))
+            r = dict(zip(cols, row, strict=False))
             r["symbol"] = r.pop("stock_symbol")
             r["success"] = bool(r["success"])
             try:

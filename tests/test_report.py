@@ -1,7 +1,6 @@
 """Tests for the report generator."""
 
-import pytest
-from src.report import format_report, _fmt_vol, _fmt_market_cap, _generate_signal
+from src.report import _fmt_market_cap, _fmt_vol, _generate_signal, format_report
 
 
 class TestFmtVol:

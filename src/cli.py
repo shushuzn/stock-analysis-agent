@@ -7,8 +7,8 @@ import json
 import time
 
 from .agent import ReActAgent, extract_symbol
-from .report import format_report, format_debate_report
 from .agent_tools import list_tools
+from .report import format_debate_report, format_report
 
 
 def run_analysis(symbol: str, query: str, args) -> dict | list | str:
@@ -102,8 +102,9 @@ def main():
 
     # Configure agent for debate rounds
     if args.debate:
-        from .debate import run_debate
         import functools
+
+        from .debate import run_debate
         _orig_run_debate = run_debate
         run_debate = functools.partial(_orig_run_debate, max_rounds=args.max_rounds)
 

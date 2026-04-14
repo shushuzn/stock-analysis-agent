@@ -10,9 +10,9 @@ import time
 from typing import Any
 
 try:
-    import yfinance as yf
-    import pandas as pd
     import numpy as np
+    import pandas as pd
+    import yfinance as yf
     YFINANCE_AVAILABLE = True
 except ImportError:
     YFINANCE_AVAILABLE = False
@@ -302,9 +302,9 @@ def _compute_macd(prices: pd.Series, fast: int = 12, slow: int = 26, signal: int
         prev_macd, curr_macd = macd_line.iloc[i-1], macd_line.iloc[i]
         prev_sig, curr_sig = signal_line.iloc[i-1], signal_line.iloc[i]
         if prev_macd < prev_sig and curr_macd > curr_sig:
-            crossovers.append({"date": str(getattr(macd_line.index[i], 'date', lambda: macd_line.index[i])()), "type": "golden_cross"})
+            crossovers.append({"date": str(macd_line.index[i].date()), "type": "golden_cross"})
         elif prev_macd > prev_sig and curr_macd < curr_sig:
-            crossovers.append({"date": str(getattr(macd_line.index[i], 'date', lambda: macd_line.index[i])()), "type": "death_cross"})
+            crossovers.append({"date": str(macd_line.index[i].date()), "type": "death_cross"})
 
     return {
         "current": {
@@ -351,9 +351,9 @@ def _compute_kdj(high: pd.Series, low: pd.Series, close: pd.Series, period: int 
     crossovers = []
     for i in range(1, len(k)):
         if k.iloc[i-1] < d.iloc[i-1] and k.iloc[i] > d.iloc[i]:
-            crossovers.append({"date": str(getattr(k.index[i], 'date', lambda: k.index[i])()), "type": "golden_cross"})
+            crossovers.append({"date": str(k.index[i].date()), "type": "golden_cross"})
         elif k.iloc[i-1] > d.iloc[i-1] and k.iloc[i] < d.iloc[i]:
-            crossovers.append({"date": str(getattr(k.index[i], 'date', lambda: k.index[i])()), "type": "death_cross"})
+            crossovers.append({"date": str(k.index[i].date()), "type": "death_cross"})
 
     return {
         "current": {
@@ -632,9 +632,9 @@ def analyze_trend(symbol: str, period: str = "6mo") -> dict[str, Any]:
     crossovers = []
     for i in range(max(5, len(ma5) - 60), len(ma5)):
         if ma5.iloc[i-1] < ma20.iloc[i-1] and ma5.iloc[i] > ma20.iloc[i]:
-            crossovers.append({"date": str(getattr(ma5.index[i], 'date', lambda: ma5.index[i])()), "type": "golden_cross", "ma_type": "MA5/MA20"})
+            crossovers.append({"date": str(ma5.index[i].date()), "type": "golden_cross", "ma_type": "MA5/MA20"})
         elif ma5.iloc[i-1] > ma20.iloc[i-1] and ma5.iloc[i] < ma20.iloc[i]:
-            crossovers.append({"date": str(getattr(ma5.index[i], 'date', lambda: ma5.index[i])()), "type": "death_cross", "ma_type": "MA5/MA20"})
+            crossovers.append({"date": str(ma5.index[i].date()), "type": "death_cross", "ma_type": "MA5/MA20"})
 
     _yf_breaker.record_success()
     result = {

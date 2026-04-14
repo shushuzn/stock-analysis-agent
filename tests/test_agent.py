@@ -1,6 +1,5 @@
 """Tests for the ReAct agent."""
 
-import pytest
 from src.agent import ReActAgent, extract_symbol
 
 
@@ -24,7 +23,7 @@ class TestExtractSymbol:
     def test_query_extraction(self):
         assert extract_symbol("分析苹果的趋势") == "AAPL"
         assert extract_symbol("600519贵州茅台") == "600519"
-        # NVDA后跟中文时\b单词边界不匹配，这是预期行为
+        # NVDA后跟中文时\b单词边界不匹配,这是预期行为
         assert extract_symbol("分析 NVDA 的趋势") == "NVDA"
 
     def test_empty(self):

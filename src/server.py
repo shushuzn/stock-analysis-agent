@@ -20,7 +20,6 @@ for p in reversed((_agent_src, _mcp_path)):
 from agent import ReActAgent, extract_symbol  # noqa: E402
 from report import format_report  # noqa: E402
 
-
 # ── MCP Protocol Handlers ─────────────────────────────────────────────────────
 
 def handle_initialize(params: dict) -> dict:

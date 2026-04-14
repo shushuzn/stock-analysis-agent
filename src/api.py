@@ -13,25 +13,33 @@ Endpoints:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
+import os
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import Any, AsyncGenerator
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from .agent import ReActAgent, extract_symbol
-from .report import format_report
-from .agent_tools import list_tools, calc_bollinger_squeeze, check_rsi_threshold
-from .persistence import store_analysis, get_history, get_stats
-from .portfolio import buy, sell, get_all_positions, get_history as get_portfolio_history, clear_all
+from .agent_tools import calc_bollinger_squeeze, check_rsi_threshold, list_tools
 from .export_pdf import generate_pdf
-from .watchlist import add as wl_add, remove as wl_remove, set_alert, get_all as wl_get_all, check_alerts
+from .macd_events import get_events as get_macd_events
+from .macd_events import get_stats as get_macd_stats
+from .macd_events import store_events
+from .persistence import get_history, get_stats, store_analysis
+from .portfolio import buy, clear_all, get_all_positions, sell
+from .portfolio import get_history as get_portfolio_history
+from .report import format_report
 from .scheduler import start_scheduler, trigger_scheduled_run
 from .tts import speak, speak_price
-from .macd_events import store_events, get_events as get_macd_events, get_stats as get_macd_stats
-
+from .watchlist import add as wl_add
+from .watchlist import check_alerts, set_alert
+from .watchlist import get_all as wl_get_all
+from .watchlist import remove as wl_remove
 
 # ── Request/Response Models ───────────────────────────────────────────────────
 
@@ -52,9 +60,6 @@ class BillingRequest(BaseModel):
 
 # ── Billing / Metering ────────────────────────────────────────────────────────
 
-import json as _json
-from pathlib import Path
-
 _BILLING_FILE = Path(__file__).parent.parent.parent / "billing_state.json"
 
 _billing_state = {"requests": 0, "total_calls": 0, "models_used": {}}
@@ -63,15 +68,13 @@ def _load_billing():
     global _billing_state
     try:
         if _BILLING_FILE.exists():
-            _billing_state = _json.loads(_BILLING_FILE.read_text())
+            _billing_state = json.loads(_BILLING_FILE.read_text())
     except Exception:
         pass
 
 def _save_billing():
-    try:
-        _BILLING_FILE.write_text(_json.dumps(_billing_state, indent=2))
-    except Exception:
-        pass
+    with contextlib.suppress(Exception):
+        _BILLING_FILE.write_text(json.dumps(_billing_state, indent=2))
 
 def _record_api_call(model: str):
     _billing_state["requests"] = _billing_state.get("requests", 0) + 1
@@ -85,16 +88,16 @@ _load_billing()
 
 def _load_api_keys() -> dict:
     """Load API keys from environment variable. Raises ValueError if not configured."""
-    keys_raw = _os.environ.get("STOCK_AGENT_API_KEYS", "")
+    keys_raw = os.environ.get("STOCK_AGENT_API_KEYS", "")
     if not keys_raw:
         raise ValueError(
             "STOCK_AGENT_API_KEYS environment variable is not set. "
             "Set it as a JSON object, e.g. {\"demo\": \"\", \"sk-bull\": \"\", \"sk-bear\": \"\"}"
         )
     try:
-        keys = _json.loads(keys_raw)
-    except _json.JSONDecodeError as e:
-        raise ValueError(f"STOCK_AGENT_API_KEYS is not valid JSON: {e}")
+        keys = json.loads(keys_raw)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"STOCK_AGENT_API_KEYS is not valid JSON: {e}") from None
     if not isinstance(keys, dict):
         raise ValueError("STOCK_AGENT_API_KEYS must be a JSON object")
     return keys
@@ -190,7 +193,7 @@ async def analyze(req: AnalyzeRequest):
                 "mode": "data",
             }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from None
 
 
 @app.get("/analyze")
@@ -225,7 +228,7 @@ async def _stream_analysis(query: str, symbol: str, period: str, use_llm: bool =
         loop = asyncio.get_event_loop()
         try:
             data = await loop.run_in_executor(
-                None, lambda: __import__("src.tools", fromlist=[""]).execute_tool(tool_name, **kwargs)
+                None, lambda tool_name=tool_name, kwargs=kwargs: __import__("src.tools", fromlist=[""]).execute_tool(tool_name, **kwargs)
             )
         except Exception as e:
             yield f"   ❌ Error: {e}\n"
@@ -340,8 +343,8 @@ async def notify(req: NotifyRequest):
         raise HTTPException(status_code=400, detail="message is required")
 
     try:
-        import urllib.request
         import urllib.parse
+        import urllib.request
         url = f"https://wxpusher.zjiecode.com/api/send/message/?appToken={sckey}&content={urllib.parse.quote(message)}&contentType=1"
         req_notify = urllib.request.Request(url, headers={"User-Agent": "StockAnalysisAgent/1.0"})
         with urllib.request.urlopen(req_notify, timeout=10) as resp:
@@ -351,7 +354,7 @@ async def notify(req: NotifyRequest):
             else:
                 return {"success": False, "result": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from None
 
 
 # ── Portfolio ────────────────────────────────────────────────────────────────
@@ -424,9 +427,9 @@ async def export_pdf(
         return Response(content=pdf_bytes, media_type="application/pdf",
                         headers={"Content-Disposition": f"attachment; filename={symbol}_report.pdf"})
     except ImportError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from None
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from None
 
 
 # ── Watchlist ────────────────────────────────────────────────────────────────
@@ -588,8 +591,8 @@ async def watchlist_trigger_alerts():
                 pass
         if sckey:
             try:
-                import urllib.request
                 import urllib.parse
+                import urllib.request
                 url = f"https://wxpusher.zjiecode.com/api/send/message/?appToken={sckey}&content={urllib.parse.quote(msg)}&contentType=1"
                 req_n = urllib.request.Request(url, headers={"User-Agent": "StockAnalysisAgent/1.0"})
                 urllib.request.urlopen(req_n, timeout=5)
@@ -678,7 +681,7 @@ async def debate_analyze(req: BillingRequest):
             "models": ["bull", "bear", "synthesis"],
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from None
 
 
 @app.get("/analyze/multi-timeframe")

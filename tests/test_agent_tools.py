@@ -1,7 +1,6 @@
 """Tests for agent_tools module."""
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 
 class TestToolCache:
@@ -15,8 +14,9 @@ class TestToolCache:
         assert result == {"price": 100}
 
     def test_cache_expired(self):
-        from src.agent_tools import ToolCache
         import time
+
+        from src.agent_tools import ToolCache
         cache = ToolCache(ttl=0)  # 0 second TTL = always expired
         cache.set("key1", {"price": 100})
         time.sleep(0.05)
@@ -55,8 +55,9 @@ class TestCircuitBreaker:
         assert breaker._opened_at is not None
 
     def test_breaker_resets_after_cooldown(self):
-        from src.agent_tools import CircuitBreaker
         import time
+
+        from src.agent_tools import CircuitBreaker
         breaker = CircuitBreaker(failure_threshold=2, cooldown=1)
         breaker.record_failure()
         breaker.record_failure()
@@ -129,12 +130,11 @@ class TestGetSectorRotation:
             assert "akshare" in result["error"].lower()
 
     def test_sector_rotation_success(self):
-        from src.agent_tools import get_sector_rotation
         # Mock akshare so it doesn't actually call the API
-        with patch.dict("sys.modules", {"akshare": MagicMock()}):
-            with patch("src.agent_tools.AKSHARE_AVAILABLE", True):
-                # Just verify it doesn't raise - actual API call skipped
-                pass  # Would need real akshare for full test
+        with patch.dict("sys.modules", {"akshare": MagicMock()}), \
+                patch("src.agent_tools.AKSHARE_AVAILABLE", True):
+            # Just verify it doesn't raise - actual API call skipped
+            pass  # Would need real akshare for full test
 
 
 class TestListTools:

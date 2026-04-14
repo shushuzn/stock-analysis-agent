@@ -2,8 +2,8 @@
 
 import pytest
 from fastapi.testclient import TestClient
-from src.api import app
 
+from src.api import app
 
 client = TestClient(app)
 
@@ -102,8 +102,9 @@ class TestApiSecurity:
         assert _verify_api_key("") is False
 
     def test_load_api_keys_requires_env_var(self):
-        from src.api import _load_api_keys
         import os
+
+        from src.api import _load_api_keys
         env_backup = os.environ.get("STOCK_AGENT_API_KEYS")
         if "STOCK_AGENT_API_KEYS" in os.environ:
             del os.environ["STOCK_AGENT_API_KEYS"]
@@ -115,8 +116,9 @@ class TestApiSecurity:
                 os.environ["STOCK_AGENT_API_KEYS"] = env_backup
 
     def test_load_api_keys_rejects_invalid_json(self):
-        from src.api import _load_api_keys
         import os
+
+        from src.api import _load_api_keys
         os.environ["STOCK_AGENT_API_KEYS"] = "not-valid-json"
         try:
             with pytest.raises(ValueError, match="Invalid JSON"):

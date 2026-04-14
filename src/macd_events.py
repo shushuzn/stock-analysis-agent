@@ -78,7 +78,7 @@ def get_events(symbol: str | None = None, limit: int = 100) -> list[dict[str, An
         cols = ["id", "timestamp", "stock_symbol", "event_date", "cross_type", "macd", "signal", "histogram", "period"]
         results = []
         for row in rows:
-            r = dict(zip(cols, row))
+            r = dict(zip(cols, row, strict=False))
             r["symbol"] = r.pop("stock_symbol")
             results.append(r)
         return results

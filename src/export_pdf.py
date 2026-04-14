@@ -9,13 +9,13 @@ from typing import Any
 def generate_pdf(symbol: str, query: str, report_text: str, tool_results: list[dict[str, Any]]) -> bytes:
     """Generate a PDF report and return bytes."""
     try:
+        from reportlab.lib import colors
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.styles import ParagraphStyle
         from reportlab.lib.units import cm
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-        from reportlab.lib import colors
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
     except ImportError:
-        raise ImportError("reportlab not installed: pip install reportlab")
+        raise ImportError("reportlab not installed: pip install reportlab") from None
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=2*cm, rightMargin=2*cm, topMargin=2*cm, bottomMargin=2*cm)

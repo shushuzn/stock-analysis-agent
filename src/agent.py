@@ -137,7 +137,7 @@ class ReActAgent:
         else:
             parallel_results = []
 
-        results = [quote_result] + parallel_results
+        results = [quote_result, *parallel_results]
         self._history = results
 
         if not use_debate:
