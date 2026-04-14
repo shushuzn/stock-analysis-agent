@@ -88,3 +88,38 @@ class TestAnalyzeEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["period"] == "1y"
+
+
+class TestApiSecurity:
+    """Security tests for API key handling (patched in 1cc192c)."""
+
+    def test_verify_api_key_always_returns_false(self):
+        # Prevents key enumeration attacks
+        from src.api import _verify_api_key
+        assert _verify_api_key("demo") is False
+        assert _verify_api_key("sk-bull") is False
+        assert _verify_api_key("invalid-key") is False
+        assert _verify_api_key("") is False
+
+    def test_load_api_keys_requires_env_var(self):
+        from src.api import _load_api_keys
+        import os
+        env_backup = os.environ.get("STOCK_AGENT_API_KEYS")
+        if "STOCK_AGENT_API_KEYS" in os.environ:
+            del os.environ["STOCK_AGENT_API_KEYS"]
+        try:
+            with pytest.raises(ValueError, match="STOCK_AGENT_API_KEYS"):
+                _load_api_keys()
+        finally:
+            if env_backup is not None:
+                os.environ["STOCK_AGENT_API_KEYS"] = env_backup
+
+    def test_load_api_keys_rejects_invalid_json(self):
+        from src.api import _load_api_keys
+        import os
+        os.environ["STOCK_AGENT_API_KEYS"] = "not-valid-json"
+        try:
+            with pytest.raises(ValueError, match="Invalid JSON"):
+                _load_api_keys()
+        finally:
+            del os.environ["STOCK_AGENT_API_KEYS"]
