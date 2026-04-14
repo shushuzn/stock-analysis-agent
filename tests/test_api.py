@@ -91,17 +91,24 @@ class TestAnalyzeEndpoint:
 
 
 class TestApiSecurity:
-    """Security tests for API key handling (patched in 1cc192c)."""
+    """Security tests for API key handling."""
 
     def test_verify_api_key_always_returns_false(self):
-        # Prevents key enumeration attacks
+        """_verify_api_key always returns False — prevents key enumeration attacks."""
+        import os
+
         from src.api import _verify_api_key
-        assert _verify_api_key("demo") is False
-        assert _verify_api_key("sk-bull") is False
-        assert _verify_api_key("invalid-key") is False
-        assert _verify_api_key("") is False
+        os.environ["STOCK_AGENT_API_KEYS"] = '{"demo": ""}'
+        try:
+            assert _verify_api_key("demo") is False
+            assert _verify_api_key("sk-bull") is False
+            assert _verify_api_key("invalid-key") is False
+            assert _verify_api_key("") is False
+        finally:
+            del os.environ["STOCK_AGENT_API_KEYS"]
 
     def test_load_api_keys_requires_env_var(self):
+        """Missing STOCK_AGENT_API_KEYS raises ValueError."""
         import os
 
         from src.api import _load_api_keys
@@ -116,12 +123,13 @@ class TestApiSecurity:
                 os.environ["STOCK_AGENT_API_KEYS"] = env_backup
 
     def test_load_api_keys_rejects_invalid_json(self):
+        """Invalid JSON in STOCK_AGENT_API_KEYS raises ValueError."""
         import os
 
         from src.api import _load_api_keys
         os.environ["STOCK_AGENT_API_KEYS"] = "not-valid-json"
         try:
-            with pytest.raises(ValueError, match="Invalid JSON"):
+            with pytest.raises(ValueError, match="is not valid JSON"):
                 _load_api_keys()
         finally:
             del os.environ["STOCK_AGENT_API_KEYS"]
