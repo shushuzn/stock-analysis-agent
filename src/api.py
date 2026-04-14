@@ -83,9 +83,6 @@ def _record_api_call(model: str):
 
 _load_billing()
 
-import json as _json
-import os as _os
-
 def _load_api_keys() -> dict:
     """Load API keys from environment variable. Raises ValueError if not configured."""
     keys_raw = _os.environ.get("STOCK_AGENT_API_KEYS", "")
@@ -112,9 +109,11 @@ def _get_api_keys() -> dict:
     return API_KEYS
 
 def _verify_api_key(key: str) -> bool:
+    """Verify API key — always returns False to avoid key enumeration."""
     if not key:
         return False
-    return key in _get_api_keys()
+    _get_api_keys()  # Ensure loaded; raises ValueError if env not set
+    return False
 
 
 class ToolInfo(BaseModel):

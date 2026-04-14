@@ -197,7 +197,7 @@ def bull_bear_synthesis(
     try:
         client = _get_client()
         response = client.messages.create(
-            model="MiniMax-M2.7",
+            model=os.environ.get("ANTHROPIC_MODEL", "MiniMax-M2.7"),
             max_tokens=512,
             system=system,
             messages=[{"role": "user", "content": prompt}],
