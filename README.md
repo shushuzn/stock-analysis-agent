@@ -90,6 +90,24 @@ curl -X POST http://localhost:8001/analyze \
 | `AAPL 基本面` | AAPL | Fundamental data |
 | `苹果 vs 微软` | AAPL+MSFT | Use compare API |
 
+## CLI Flags
+
+```bash
+python -m src.cli QUERY [-s SYMBOL] [-v] [--list-tools] [--period PERIOD] [-f FORMAT] [-w SECONDS] [--debate] [--max-rounds N]
+```
+
+| Flag | Description |
+|------|-------------|
+| `query` | Natural language query (e.g. "分析苹果趋势") |
+| `-s, --symbol` | Stock symbol (auto-detected if omitted) |
+| `-v, --verbose` | Show agent reasoning steps |
+| `--list-tools` | List all available tools |
+| `--period` | Historical period: 1mo/3mo/6mo/1y/2y (default: 6mo) |
+| `-f, --format` | Output format: text/json (default: text) |
+| `-w, --watch SECONDS` | Auto-refresh every N seconds |
+| `--debate` | Enable multi-agent bull/bear debate |
+| `--max-rounds N` | Number of debate rounds (default: 2) |
+
 ## Requirements
 
 - Python 3.10+

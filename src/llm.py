@@ -20,10 +20,7 @@ def _get_client() -> anthropic.Anthropic:
     global _client
     if _client is None:
         _client = anthropic.Anthropic(
-            api_key=os.environ.get(
-                "ANTHROPIC_API_KEY",
-                "sk-cp-zNNt30MolJOgSwdsdgA8BJbLoKmiV3Zttz_IgZkapeyjoPPq-qYFSw-XiMZIIUyeH4PTB4Y86QXu_wKR8JvmZ9PbkkMmMwDTC6QgHznXopDTl0nBZ9AQHQ8",
-            ),
+            api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
             base_url=os.environ.get(
                 "ANTHROPIC_BASE_URL",
                 "https://api.minimaxi.com/anthropic",

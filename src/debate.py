@@ -8,9 +8,15 @@ Implements the researcher team from TradingAgents:
 
 from __future__ import annotations
 
+import os
 import textwrap
+import time
 
 from .llm import _get_client
+
+DEFAULT_MODEL = os.environ.get("ANTHROPIC_MODEL", "MiniMax-M2.7")
+MAX_RETRIES = 2
+RETRY_DELAY = 2.0  # seconds
 
 
 # ── Prompt Templates ─────────────────────────────────────────────────────────
@@ -171,23 +177,29 @@ def _build_researcher_prompt(
 
 
 def _call_researcher(system: str, prompt: str, max_tokens: int = 1024) -> str:
-    """Call researcher LLM with given system prompt."""
-    try:
-        client = _get_client()
-        response = client.messages.create(
-            model="MiniMax-M2.7",
-            max_tokens=max_tokens,
-            system=system,
-            messages=[{"role": "user", "content": prompt}],
-        )
+    """Call researcher LLM with given system prompt and retry logic."""
+    last_error = None
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            client = _get_client()
+            response = client.messages.create(
+                model=DEFAULT_MODEL,
+                max_tokens=max_tokens,
+                system=system,
+                messages=[{"role": "user", "content": prompt}],
+            )
 
-        for block in response.content:
-            if hasattr(block, "type") and block.type == "text":
-                return block.text
+            for block in response.content:
+                if hasattr(block, "type") and block.type == "text":
+                    return block.text
 
-        return str(response.content)
-    except Exception as e:
-        return f"[研究员分析失败: {e}]"
+            return str(response.content)
+        except Exception as e:
+            last_error = e
+            if attempt < MAX_RETRIES:
+                time.sleep(RETRY_DELAY)
+                continue
+    return f"[研究员分析失败: {last_error}]"
 
 
 # ── Multi-Round Debate ────────────────────────────────────────────────────────

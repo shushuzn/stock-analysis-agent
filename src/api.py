@@ -28,7 +28,9 @@ from .persistence import store_analysis, get_history, get_stats
 from .portfolio import buy, sell, get_all_positions, get_history as get_portfolio_history, clear_all
 from .export_pdf import generate_pdf
 from .watchlist import add as wl_add, remove as wl_remove, set_alert, get_all as wl_get_all, check_alerts
+from .scheduler import start_scheduler, trigger_scheduled_run
 from .tts import speak, speak_price
+from .macd_events import store_events, get_events as get_macd_events, get_stats as get_macd_stats
 
 
 # ── Request/Response Models ───────────────────────────────────────────────────
@@ -39,6 +41,80 @@ class AnalyzeRequest(BaseModel):
     period: str = "6mo"
     stream: bool = False
     llm: bool = False  # Enable LLM-powered analysis
+
+
+class BillingRequest(BaseModel):
+    api_key: str
+    query: str
+    symbol: str | None = None
+    period: str = "6mo"
+
+
+# ── Billing / Metering ────────────────────────────────────────────────────────
+
+import json as _json
+from pathlib import Path
+
+_BILLING_FILE = Path(__file__).parent.parent.parent / "billing_state.json"
+
+_billing_state = {"requests": 0, "total_calls": 0, "models_used": {}}
+
+def _load_billing():
+    global _billing_state
+    try:
+        if _BILLING_FILE.exists():
+            _billing_state = _json.loads(_BILLING_FILE.read_text())
+    except Exception:
+        pass
+
+def _save_billing():
+    try:
+        _BILLING_FILE.write_text(_json.dumps(_billing_state, indent=2))
+    except Exception:
+        pass
+
+def _record_api_call(model: str):
+    _billing_state["requests"] = _billing_state.get("requests", 0) + 1
+    _billing_state["total_calls"] = _billing_state.get("total_calls", 0) + 1
+    if model not in _billing_state["models_used"]:
+        _billing_state["models_used"][model] = 0
+    _billing_state["models_used"][model] = _billing_state["models_used"].get(model, 0) + 1
+    _save_billing()
+
+_load_billing()
+
+import json as _json
+import os as _os
+
+def _load_api_keys() -> dict:
+    """Load API keys from environment variable. Raises ValueError if not configured."""
+    keys_raw = _os.environ.get("STOCK_AGENT_API_KEYS", "")
+    if not keys_raw:
+        raise ValueError(
+            "STOCK_AGENT_API_KEYS environment variable is not set. "
+            "Set it as a JSON object, e.g. {\"demo\": \"\", \"sk-bull\": \"\", \"sk-bear\": \"\"}"
+        )
+    try:
+        keys = _json.loads(keys_raw)
+    except _json.JSONDecodeError as e:
+        raise ValueError(f"STOCK_AGENT_API_KEYS is not valid JSON: {e}")
+    if not isinstance(keys, dict):
+        raise ValueError("STOCK_AGENT_API_KEYS must be a JSON object")
+    return keys
+
+API_KEYS: dict = {}
+
+
+def _get_api_keys() -> dict:
+    global API_KEYS
+    if not API_KEYS:
+        API_KEYS = _load_api_keys()
+    return API_KEYS
+
+def _verify_api_key(key: str) -> bool:
+    if not key:
+        return False
+    return key in _get_api_keys()
 
 
 class ToolInfo(BaseModel):
@@ -417,6 +493,25 @@ async def watchlist_check():
                     "price": prices.get(sym, 0),
                 })
 
+    # Check trend crossovers (golden/death cross)
+    for sym in wl["symbols"]:
+        from .agent_tools import analyze_trend
+        trend_result = analyze_trend(sym)
+        if "error" not in trend_result:
+            for sig in trend_result.get("signals", []):
+                if sig.get("type") == "golden_cross":
+                    triggered.append({
+                        "symbol": sym,
+                        "reason": "MA金叉（MA5上穿MA20）",
+                        "price": prices.get(sym, 0),
+                    })
+                elif sig.get("type") == "death_cross":
+                    triggered.append({
+                        "symbol": sym,
+                        "reason": "MA死叉（MA5下穿MA20）",
+                        "price": prices.get(sym, 0),
+                    })
+
     return {"triggered": triggered}
 
 
@@ -502,6 +597,109 @@ async def watchlist_trigger_alerts():
             except Exception:
                 pass
     return {"triggered": triggered, "notified": len(triggered), "tts": enable_tts}
+
+
+@app.post("/scheduler/start")
+async def scheduler_start(interval_minutes: int = 60):
+    """Start background scheduled analysis (runs every `interval_minutes`)."""
+    start_scheduler(interval_minutes)
+    return {"success": True, "message": f"Scheduler started, interval={interval_minutes}min"}
+
+
+@app.post("/scheduler/trigger")
+async def scheduler_trigger():
+    """Manually trigger a scheduled analysis run."""
+    return trigger_scheduled_run()
+
+
+# ── MACD Events ─────────────────────────────────────────────────────────────────
+
+@app.get("/macd/events")
+async def macd_events(symbol: str | None = None, limit: int = Query(100)):
+    """Fetch MACD crossover events, optionally filtered by symbol."""
+    return {"events": get_macd_events(symbol=symbol, limit=limit)}
+
+
+@app.get("/macd/stats")
+async def macd_stats(symbol: str | None = None):
+    """Get aggregate MACD event stats."""
+    return get_macd_stats(symbol=symbol)
+
+
+@app.post("/macd/scan")
+async def macd_scan(symbol: str, period: str = "6mo"):
+    """Scan and store MACD crossovers for a symbol."""
+    from .agent_tools import calc_macd
+    result = calc_macd(symbol, period)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    events = result.get("crossovers", [])
+    stored = store_events(symbol, period, events)
+    return {"symbol": symbol, "period": period, "events_found": len(events), "events_stored": stored}
+
+
+# ── Billing / APIaaS Endpoints ─────────────────────────────────────────────────
+
+@app.get("/billing")
+async def get_billing():
+    """Query current billing state."""
+    return {
+        "requests": _billing_state.get("requests", 0),
+        "total_calls": _billing_state.get("total_calls", 0),
+        "models_used": _billing_state.get("models_used", {}),
+        "plan": "per_call",
+        "price_per_call_usd": 0.10,
+        "estimated_cost_usd": round(_billing_state.get("total_calls", 0) * 0.10, 4),
+    }
+
+
+@app.post("/debate/analyze")
+async def debate_analyze(req: BillingRequest):
+    """Multi-model debate analysis — APIaaS entry point with billing.
+
+    Three LLM models analyze the query: bull, bear, and synthesis.
+    Returns comparative analysis across models.
+    """
+    if not _verify_api_key(req.api_key):
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+    from .agent import ReActAgent
+    symbol = req.symbol or ReActAgent._extract_symbol_from_query(req.query) if hasattr(ReActAgent, '_extract_symbol_from_query') else None
+
+    agent = ReActAgent(max_steps=10, verbose=False)
+    try:
+        result = agent.analyze_with_debate(req.query, symbol or "UNKNOWN")
+        _record_api_call("debate")
+        return {
+            "symbol": symbol,
+            "query": req.query,
+            "period": req.period,
+            "analysis": result,
+            "mode": "debate",
+            "models": ["bull", "bear", "synthesis"],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/analyze/multi-timeframe")
+async def analyze_multi_timeframe(symbol: str = Query(...)):
+    """Analyze multi-timeframe resonance across daily/weekly/monthly."""
+    from .agent_tools import analyze_multi_timeframe as mt_func
+    result = mt_func(symbol)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@app.get("/sector/rotation")
+async def sector_rotation(indicator: str = Query("概念"), limit: int = Query(20)):
+    """Get A-share sector rotation (top gainers/losers) via AKShare."""
+    from .agent_tools import get_sector_rotation as gs_func
+    result = gs_func(indicator=indicator, limit=limit)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
 
 
 def _extract_signal(results: list[dict]) -> str | None:

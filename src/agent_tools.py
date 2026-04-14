@@ -649,6 +649,104 @@ def analyze_trend(symbol: str, period: str = "6mo") -> dict[str, Any]:
     return result
 
 
+# ── Multi-Timeframe Resonance ─────────────────────────────────────────────────
+
+def analyze_multi_timeframe(symbol: str) -> dict[str, Any]:
+    """Analyze symbol across daily/weekly/monthly timeframes. Returns resonance signals."""
+    if not YFINANCE_AVAILABLE:
+        return {"error": "yfinance not installed"}
+
+    periods = {
+        "daily": "1mo",
+        "weekly": "3mo",
+        "monthly": "6mo",
+    }
+
+    results = {}
+    for label, period in periods.items():
+        df = _get_historical_data(symbol, period)
+        if df is None or df.empty:
+            results[label] = {"error": f"No data for {period}"}
+            continue
+
+        close = df["Close"]
+        ma5 = close.rolling(window=5).mean()
+        ma20 = close.rolling(window=20).mean()
+
+        current_ma5 = ma5.iloc[-1]
+        current_ma20 = ma20.iloc[-1]
+
+        if current_ma5 > current_ma20:
+            trend = "上升"
+        elif current_ma5 < current_ma20:
+            trend = "下降"
+        else:
+            trend = "震荡"
+
+        results[label] = {
+            "trend": trend,
+            "ma5": round(current_ma5, 2) if current_ma5 else None,
+            "ma20": round(current_ma20, 2) if current_ma20 else None,
+        }
+
+    # Resonance: count how many timeframes agree
+    trends = [r.get("trend") for r in results.values() if "error" not in r]
+    bullish_count = sum(1 for t in trends if t == "上升")
+    bearish_count = sum(1 for t in trends if t == "下降")
+
+    if bullish_count >= 3:
+        resonance = "强共振-看涨"
+    elif bearish_count >= 3:
+        resonance = "强共振-看跌"
+    elif bullish_count == 2:
+        resonance = "弱共振-看涨"
+    elif bearish_count == 2:
+        resonance = "弱共振-看跌"
+    else:
+        resonance = "无共振"
+
+    return {
+        "symbol": symbol,
+        "resonance": resonance,
+        "timeframes": results,
+    }
+
+
+# ── A股板块轮动 ────────────────────────────────────────────────────────────────
+
+def get_sector_rotation(indicator: str = "概念", limit: int = 20) -> dict[str, Any]:
+    """Get A-share sector rotation data via AKShare.
+
+    Args:
+        indicator: 新浪行业/启明星行业/概念/地域/行业
+        limit: number of top sectors to return (by absolute gain)
+    """
+    try:
+        import akshare as ak
+    except ImportError:
+        return {"error": "akshare 未安装，请运行: pip install akshare"}
+
+    try:
+        df = ak.stock_sector_spot(indicator=indicator)
+        if df is None or df.empty:
+            return {"error": "No sector data returned"}
+
+        # Sort by 涨跌幅 descending
+        df = df.sort_values("涨跌幅", ascending=False)
+
+        top_gainers = df.head(limit)[["板块", "涨跌幅", "涨跌额", "总成交量", "总成交额"]].to_dict("records")
+        top_losers = df.tail(limit)[["板块", "涨跌幅", "涨跌额", "总成交量", "总成交额"]].to_dict("records")
+
+        return {
+            "indicator": indicator,
+            "top_gainers": top_gainers,
+            "top_losers": top_losers,
+            "total_sectors": len(df),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 def get_summary(symbol: str, period: str = "6mo") -> dict[str, Any]:
@@ -739,27 +837,39 @@ def backtest_signal(symbol: str, days: int = 365) -> dict[str, Any]:
     Simulates: buy when bull signal, sell when bear signal.
     Returns win rate, total return, and per-signal stats.
     """
-    if not YFINANCE_AVAILABLE:
-        return {"error": "yfinance not installed"}
+    if not YAHOOQUERY_AVAILABLE:
+        return {"error": "yahooquery not installed. Run: pip install yahooquery"}
 
     try:
-        ticker = yf.Ticker(symbol)
-        df = ticker.history(period=f"{days}d")[["Close"]]
+        ticker = YQ_Ticker(symbol)
+        # yahooquery: history() returns a DataFrame with date index
+        df = ticker.history(period=f"{days}d")
     except Exception as e:
         return {"error": str(e)}
+
+    if df is None or df.empty:
+        return {"error": f"No price data for {symbol}"}
+
+    # Ensure we have a 'Close' column (yahooquery uses lowercase)
+    if "Close" not in df.columns and "close" in df.columns:
+        df = df.rename(columns={"close": "Close", "high": "High", "low": "Low", "open": "Open", "volume": "Volume"})
+    if "Close" not in df.columns:
+        return {"error": f"No Close column in returned data for {symbol}"}
 
     if len(df) < 60:
         return {"error": f"Insufficient data: {len(df)} rows"}
 
+    close = df["Close"]
+
     # Compute RSI and MACD on full series
-    delta = df["Close"].diff()
+    delta = close.diff()
     gain = delta.clip(lower=0).rolling(14).mean()
     loss = (-delta.clip(upper=0)).rolling(14).mean()
     rs = gain / loss.replace(0, 1e-10)
     rsi = 100 - (100 / (1 + rs))
 
-    exp1 = df["Close"].ewm(span=12, adjust=False).mean()
-    exp2 = df["Close"].ewm(span=26, adjust=False).mean()
+    exp1 = close.ewm(span=12, adjust=False).mean()
+    exp2 = close.ewm(span=26, adjust=False).mean()
     macd_line = exp1 - exp2
     signal_line = macd_line.ewm(span=9, adjust=False).mean()
     macd_hist = macd_line - signal_line
@@ -771,9 +881,9 @@ def backtest_signal(symbol: str, days: int = 365) -> dict[str, Any]:
         m = macd_hist.iloc[i]
         if r and m:
             if r < 30 and m > 0:
-                signals.append(("bull", df["Close"].iloc[i]))
+                signals.append(("bull", close.iloc[i]))
             elif r > 70 and m < 0:
-                signals.append(("bear", df["Close"].iloc[i]))
+                signals.append(("bear", close.iloc[i]))
 
     if len(signals) < 2:
         return {"error": f"Too few signals generated: {len(signals)}", "total_signals": len(signals)}
@@ -826,6 +936,8 @@ TOOLS = {
     "analyze_trend": {"fn": analyze_trend, "desc": "Analyze MA trend", "args": {"symbol": "str", "period": "str"}},
     "compare_stocks": {"fn": compare_stocks, "desc": "Compare stocks", "args": {"symbols": "list[str]", "period": "str"}},
     "get_summary": {"fn": get_summary, "desc": "Get summary", "args": {"symbol": "str", "period": "str"}},
+    "analyze_multi_timeframe": {"fn": analyze_multi_timeframe, "desc": "Analyze multi-timeframe resonance (daily/weekly/monthly)", "args": {"symbol": "str"}},
+    "get_sector_rotation": {"fn": get_sector_rotation, "desc": "Get A-share sector rotation data (top gainers/losers)", "args": {"indicator": "str", "limit": "int"}},
 }
 
 
@@ -855,7 +967,12 @@ def select_tools_for_task(task: str, symbol: str) -> list[tuple[str, dict]]:
         selections.append(("get_quote", {"symbol": symbol}))
 
     # Fundamentals
-    if any(kw in task_lower for kw in ["基本面", "估值", "财务", "fundamental", "invest", "分析", "报告"]):
+    if any(kw in task_lower for kw in [
+        "基本面", "估值", "财务", "fundamental", "invest", "分析", "报告",
+        "pe", "p/e", "eps", "市盈率", "每股收益", "股价", "盈利", "收入", "利润",
+        "revenue", "profit", "earnings", "dividend", "dividends",
+        "market cap", "capitalization", "市值",
+    ]):
         selections.append(("get_fundamentals", {"symbol": symbol}))
 
     # Technical indicators
@@ -879,6 +996,10 @@ def select_tools_for_task(task: str, symbol: str) -> list[tuple[str, dict]]:
     # Trend
     if any(kw in task_lower for kw in ["趋势", "均线", "ma", "trend", "交叉"]):
         selections.append(("analyze_trend", {"symbol": symbol}))
+
+    # Multi-timeframe
+    if any(kw in task_lower for kw in ["共振", "多周期", "多时间", "timeframe", "time frame"]):
+        selections.append(("analyze_multi_timeframe", {"symbol": symbol}))
 
     # Default: full analysis
     if len(selections) == 1:

@@ -97,7 +97,7 @@ class ReActAgent:
 
         # LLM-powered analysis
         if use_llm:
-            from .llm import analyze_with_llm
+            from .llm_router import analyze_with_llm
             llm_result = analyze_with_llm(symbol, query, results)
             return llm_result
 
@@ -205,14 +205,11 @@ class ReActAgent:
 
     def _execute_parallel(self, tool_specs: list[tuple[str, dict]]) -> list[dict]:
         """Execute multiple tools in parallel using asyncio."""
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
+        async def _run() -> list[dict]:
             tasks = [self._execute_single_async(spec) for spec in tool_specs]
-            results = loop.run_until_complete(asyncio.gather(*tasks))
-            return list(results)
-        finally:
-            loop.close()
+            return await asyncio.gather(*tasks)
+
+        return asyncio.run(_run())
 
     def analyze_with_debate(self, query: str, symbol: str) -> dict:
         """Full multi-agent debate analysis (entry point for debate mode).
